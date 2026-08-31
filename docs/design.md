@@ -249,3 +249,7 @@ identically through the tunnel.
 - [ ] README: `hermes plugins enable t3code` (opt-in), both auth walkthroughs, the
       `allow_gateway_injection` grant for event push
 - [ ] Submit to `NousResearch/hermes-plugin-index` with an immutable ref once stable
+
+## Implementation notes vs PRD
+
+- **WI-1 directory loader:** PRD `files_scope` listed `talaria/__init__.py` as the register() home. Hermes' directory scanner / `hermes plugins doctor .` copies the plugin directory and loads *that* directory as a module (`hermes_cli/plugins.py` `_load_directory_module`). A repo-root `__init__.py` re-exports `talaria.register` so doctor and git-clone installs work; the pip entry point `t3code = "talaria"` still loads the package. Source wins.

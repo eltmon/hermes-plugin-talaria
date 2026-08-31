@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T12:00:00Z",
+    "updated": "2026-08-31T12:40:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -29,7 +29,7 @@
       {
         "id": "wi-1-scaffold",
         "title": "Repo scaffold and plugin skeleton (plugin.yaml, pyproject, register(ctx), CI)",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -48,8 +48,8 @@
         },
         "narrative": { "Action": "Create the package layout per PRD WI-1: manifest v2 (name t3code, kind backend, config_schema, python_dependencies [cryptography]), entry point hermes_agent.plugins -> talaria, register(ctx) wiring stub tools/CLI, CI running pytest and hermes plugins doctor." },
         "items": [
-          { "id": "wi-1-scaffold.ac1", "title": "register(ctx) with a fake ctx registers every tool name declared in plugin.yaml provides_tools", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-1-scaffold.ac2", "title": "Socket-guard test proves no module opens a socket at import or registration", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-1-scaffold.ac1", "title": "register(ctx) with a fake ctx registers every tool name declared in plugin.yaml provides_tools", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-1-scaffold.ac2", "title": "Socket-guard test proves no module opens a socket at import or registration", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {

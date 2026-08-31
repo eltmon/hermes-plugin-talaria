@@ -1,0 +1,53 @@
+name: t3code
+version: 0.1.0
+description: >-
+  Drive remote T3 Code environments from Hermes — list projects and threads,
+  send prompts, respond to approvals, interrupt turns, and wait for settlement.
+author: Edward Becker
+kind: backend
+manifest_version: 2
+api_version: 1
+license: MIT
+homepage: https://github.com/eltmon/hermes-plugin-talaria
+provides_tools:
+  - t3_environments
+  - t3_list
+  - t3_thread
+  - t3_new_thread
+  - t3_prompt
+  - t3_interrupt
+  - t3_respond
+  - t3_wait
+python_dependencies:
+  - cryptography
+config_schema:
+  t3connect:
+    type: dict
+    required: false
+    description: >-
+      T3 Connect (mode B) settings. Nested keys: enabled (bool, default true),
+      relay_url (https://relay.t3.codes), hosted_app_url (https://app.t3.codes),
+      clerk_publishable_key (public Clerk pk_live_…), clerk_oauth_client_id
+      (public CLI OAuth client id). These Clerk values are public client
+      identifiers, not secrets.
+    default:
+      enabled: true
+      relay_url: https://relay.t3.codes
+      hosted_app_url: https://app.t3.codes
+      clerk_publishable_key: pk_live_Y2xlcmsudDMuY29kZXMk
+      clerk_oauth_client_id: hzxSgY2cH10sDU2r
+  environments:
+    type: dict
+    required: false
+    description: >-
+      Mode A direct environments: mapping of name to {base_url: "https://..."}.
+      Tokens are stored as hermes secrets, never in this map.
+    default: {}
+  default_environment:
+    type: str
+    required: false
+    default: null
+    description: >-
+      Default environment name or environmentId used when a tool omits the
+      environment argument. Null means no default (error unless exactly one
+      environment is available).

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-plugin-talaria"
+version = "0.1.0"
+description = "Hermes Agent plugin (id t3code) that drives remote T3 Code environments"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Edward Becker" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.entry-points."hermes_agent.plugins"]
+t3code = "talaria"
+
+[tool.setuptools]
+packages = ["talaria"]
