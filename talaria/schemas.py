@@ -78,12 +78,47 @@ T3_THREAD_SCHEMA = _schema(
     required=["thread_id"],
 )
 
+_MODEL_SELECTION = {
+    "type": "object",
+    "description": (
+        "Provider instance and model. instance_id is the provider instance slug "
+        "(sent on the wire as instanceId)."
+    ),
+    "properties": {
+        "instance_id": {
+            "type": "string",
+            "description": "Provider instance slug (wire instanceId).",
+        },
+        "model": {
+            "type": "string",
+            "description": "Model id on that instance.",
+        },
+    },
+    "required": ["instance_id", "model"],
+}
+
+_RUNTIME_MODE = {
+    "type": "string",
+    "description": (
+        "approval-required | auto-accept-edits | auto | full-access. "
+        "Default approval-required. Do not use full-access unless asked."
+    ),
+}
+
+_INTERACTION_MODE = {
+    "type": "string",
+    "description": "default | plan. Default default.",
+}
+
 T3_NEW_THREAD_SCHEMA = _schema(
     "t3_new_thread",
     (
         "Create a new T3 Code thread in a project (dispatch thread.create). Use "
         "this when the user wants a fresh conversation rather than prompting an "
-        "existing thread. The client generates the thread id."
+        "existing thread. The client generates the thread id. runtime_mode "
+        "defaults to approval-required (never full-access unless the user "
+        "explicitly asks). interaction_mode defaults to default. branch and "
+        "worktreePath are sent as null."
     ),
     {
         "environment": ENVIRONMENT,
@@ -95,8 +130,11 @@ T3_NEW_THREAD_SCHEMA = _schema(
             "type": "string",
             "description": "Title for the new thread.",
         },
+        "model_selection": _MODEL_SELECTION,
+        "runtime_mode": _RUNTIME_MODE,
+        "interaction_mode": _INTERACTION_MODE,
     },
-    required=["project_id"],
+    required=["project_id", "title", "model_selection"],
 )
 
 T3_PROMPT_SCHEMA = _schema(
@@ -118,17 +156,9 @@ T3_PROMPT_SCHEMA = _schema(
             "type": "string",
             "description": "User prompt text to send as the turn message.",
         },
-        "runtime_mode": {
-            "type": "string",
-            "description": (
-                "approval-required | auto-accept-edits | auto | full-access. "
-                "Default approval-required. Do not use full-access unless asked."
-            ),
-        },
-        "interaction_mode": {
-            "type": "string",
-            "description": "default | plan.",
-        },
+        "model_selection": _MODEL_SELECTION,
+        "runtime_mode": _RUNTIME_MODE,
+        "interaction_mode": _INTERACTION_MODE,
     },
     required=["thread_id", "text"],
 )
@@ -168,8 +198,29 @@ T3_RESPOND_SCHEMA = _schema(
             "type": "string",
             "description": "approval | user-input. Which pending request to answer.",
         },
+        "request_id": {
+            "type": "string",
+            "description": (
+                "Pending request id. Sent on the wire as requestId for both "
+                "thread.approval.respond and thread.user-input.respond."
+            ),
+        },
+        "decision": {
+            "type": "string",
+            "description": (
+                "accept | acceptForSession | acceptAlways | decline | cancel. "
+                "Required when kind=approval."
+            ),
+        },
+        "answers": {
+            "type": "object",
+            "description": (
+                "Answers map (string keys → values) for kind=user-input. "
+                "Wire field answers."
+            ),
+        },
     },
-    required=["thread_id", "kind"],
+    required=["thread_id", "kind", "request_id"],
 )
 
 T3_WAIT_SCHEMA = _schema(

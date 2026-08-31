@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T13:45:00Z",
+    "updated": "2026-08-31T14:10:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -156,7 +156,7 @@
       {
         "id": "wi-6-write-tools",
         "title": "Write tools: t3_new_thread, t3_prompt, t3_interrupt, t3_respond (dispatch commands)",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -174,8 +174,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-6: command builders generating uuid4 ids and ISO createdAt; t3_prompt with model_selection/runtime_mode/interaction_mode args; t3_respond handles approval and user-input kinds; never default to full-access." },
         "items": [
-          { "id": "wi-6-write-tools.ac1", "title": "thread.turn.start payload matches the PRD transcription exactly (fixture comparison)", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-6-write-tools.ac2", "title": "Omitted runtime_mode dispatches approval-required, and attachments default to []", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-6-write-tools.ac1", "title": "thread.turn.start payload matches the PRD transcription exactly (fixture comparison)", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-6-write-tools.ac2", "title": "Omitted runtime_mode dispatches approval-required, and attachments default to []", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {

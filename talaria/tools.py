@@ -6,6 +6,12 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from .commands import (
+    thread_create,
+    thread_respond,
+    thread_turn_interrupt,
+    thread_turn_start,
+)
 from .config import (
     EnvironmentRef,
     get_secret,
@@ -57,6 +63,14 @@ def _ctx(kwargs):
     if ctx is not None:
         return ctx
     return _bound_ctx
+
+
+def _ready_ctx(kwargs):
+    # Scaffold FakeCtx has no get_config; keep the stub so WI-1 stub tests hold.
+    ctx = _ctx(kwargs)
+    if ctx is None or not callable(getattr(ctx, "get_config", None)):
+        return None
+    return ctx
 
 
 def _unexpected(exc: BaseException) -> str:
@@ -356,20 +370,78 @@ def handle_t3_thread(args: dict, **kwargs) -> str:
         return _unexpected(exc)
 
 
+def _dispatch_command(ctx, args: dict, command: dict) -> str:
+    ref = resolve_environment(ctx, args.get("environment"))
+    token = _token(ctx, ref)
+    if not token:
+        return NotAuthenticated(ref.name).to_json()
+    result = make_env_client(ref, _headers_fn(token)).dispatch(command)
+    payload = {
+        "environment": ref.name,
+        "type": command["type"],
+        "commandId": command["commandId"],
+        "threadId": command["threadId"],
+    }
+    message = command.get("message")
+    if isinstance(message, dict) and "messageId" in message:
+        payload["messageId"] = message["messageId"]
+    if isinstance(result, dict):
+        payload.update(result)
+    else:
+        payload["result"] = result
+    return json.dumps(payload)
+
+
 def handle_t3_new_thread(args: dict, **kwargs) -> str:
-    return _stub("t3_new_thread")
+    try:
+        ctx = _ready_ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_new_thread")
+        args = args or {}
+        return _dispatch_command(ctx, args, thread_create(args))
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
 
 
 def handle_t3_prompt(args: dict, **kwargs) -> str:
-    return _stub("t3_prompt")
+    try:
+        ctx = _ready_ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_prompt")
+        args = args or {}
+        return _dispatch_command(ctx, args, thread_turn_start(args))
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
 
 
 def handle_t3_interrupt(args: dict, **kwargs) -> str:
-    return _stub("t3_interrupt")
+    try:
+        ctx = _ready_ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_interrupt")
+        args = args or {}
+        return _dispatch_command(ctx, args, thread_turn_interrupt(args))
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
 
 
 def handle_t3_respond(args: dict, **kwargs) -> str:
-    return _stub("t3_respond")
+    try:
+        ctx = _ready_ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_respond")
+        args = args or {}
+        return _dispatch_command(ctx, args, thread_respond(args))
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
 
 
 def handle_t3_wait(args: dict, **kwargs) -> str:
