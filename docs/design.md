@@ -253,6 +253,8 @@ identically through the tunnel.
 ## Implementation notes vs PRD
 
 - **WI-1 directory loader:** PRD `files_scope` listed `talaria/__init__.py` as the register() home. Hermes' directory scanner / `hermes plugins doctor .` copies the plugin directory and loads *that* directory as a module (`hermes_cli/plugins.py` `_load_directory_module`). A repo-root `__init__.py` re-exports `talaria.register` so doctor and git-clone installs work; the pip entry point `t3code = "talaria"` still loads the package. Source wins.
+- **WI-9 relay DPoP `client_id`:** PRD omitted it. t3code `RelayPublicClientId` is only `t3-web` | `t3-mobile`. The plugin sends `t3-web`.
+- **WI-9 `POST /v1/client/dpop-token`:** PRD table said Clerk bearer + dpop proof. Source (`managedRelay.ts` `exchangeAccessToken`) sends the Clerk token as RFC 8693 `subject_token` and the proof in the `dpop` header, with no `Authorization` bearer. The plugin matches source.
 
 ## CP-1 — `t3_wait` poll endpoint (decided fallback)
 

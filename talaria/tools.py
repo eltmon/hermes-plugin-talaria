@@ -7,6 +7,15 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from .auth_t3connect import (
+    ACCESS_SECRET,
+    ConnectAuthError,
+    RelayNotAuthenticated,
+    environment_status,
+    make_dpop_env_client,
+    sync_discovered_environments,
+    t3connect_enabled,
+)
 from .commands import (
     thread_create,
     thread_respond,
@@ -20,7 +29,13 @@ from .config import (
     resolve_environments,
     secret_name_for,
 )
-from .errors import EnvironmentNotFound, NotAuthenticated, TalariaError, json_error
+from .errors import (
+    EnvironmentNotFound,
+    NotAuthenticated,
+    T3ApiError,
+    TalariaError,
+    json_error,
+)
 from .t3_env import T3EnvClient
 
 OUTPUT_CHAR_LIMIT = 32_768
@@ -91,15 +106,71 @@ def _unexpected(exc: BaseException) -> str:
     )
 
 
-def _token(ctx, ref: EnvironmentRef) -> str | None:
+def _store(ctx):
     store = getattr(ctx, "secrets", None)
     if store is not None and not isinstance(store, Mapping):
-        store = None
-    token = get_secret(secret_name_for(ref.name), store=store)
+        return None
+    return store
+
+
+def _token(ctx, ref: EnvironmentRef) -> str | None:
+    token = get_secret(secret_name_for(ref.name), store=_store(ctx))
     if token is None:
         return None
     token = str(token).strip()
     return token or None
+
+
+def _clerk_token(ctx) -> str | None:
+    token = get_secret(ACCESS_SECRET, store=_store(ctx))
+    if token is None:
+        return None
+    token = str(token).strip()
+    return token or None
+
+
+def _has_auth(ctx, ref: EnvironmentRef) -> bool:
+    if _token(ctx, ref):
+        return True
+    if ref.mode == "t3connect":
+        return bool(_clerk_token(ctx))
+    return False
+
+
+def _ensure_discovered(ctx) -> None:
+    if not callable(getattr(ctx, "get_config", None)):
+        return
+    if not t3connect_enabled(ctx) or not _clerk_token(ctx):
+        return
+    try:
+        sync_discovered_environments(ctx, store=_store(ctx))
+    except (NotAuthenticated, T3ApiError, ConnectAuthError):
+        raise
+    except Exception:
+        return
+
+
+def _resolved_env(ctx, name: str | None) -> EnvironmentRef:
+    _ensure_discovered(ctx)
+    return resolve_environment(ctx, name)
+
+
+def _client_for(ctx, ref: EnvironmentRef) -> T3EnvClient:
+    store = _store(ctx)
+    if ref.mode == "t3connect" and _clerk_token(ctx):
+        factory = _client_factory
+        inner = factory(ref, None) if factory is not None else None
+        if inner is not None and not isinstance(inner, T3EnvClient):
+            return inner
+        return make_dpop_env_client(
+            ref, ctx, store, inner=inner if isinstance(inner, T3EnvClient) else None
+        )
+    token = _token(ctx, ref)
+    if not token:
+        if ref.mode == "t3connect":
+            raise RelayNotAuthenticated(ref.name)
+        raise NotAuthenticated(ref.name)
+    return make_env_client(ref, _headers_fn(token))
 
 
 def _headers_fn(token: str | None) -> Callable[[], Mapping[str, str]]:
@@ -250,26 +321,46 @@ def _turn_limit(args: dict) -> int:
 
 
 def _probe_env(ctx, ref: EnvironmentRef) -> dict:
-    token = _token(ctx, ref)
     live = False
     label = None
     env_id = ref.environment_id
-    try:
-        client = make_env_client(ref, _headers_fn(token))
-        desc = client.descriptor()
-        live = True
-        if isinstance(desc, dict):
-            label = desc.get("label")
-            if desc.get("environmentId"):
-                env_id = desc.get("environmentId")
-    except Exception:
-        live = False
+    if ref.mode == "t3connect" and _clerk_token(ctx):
+        try:
+            status = environment_status(
+                ctx,
+                str(ref.environment_id or ref.name),
+                store=_store(ctx),
+            )
+            live = isinstance(status, Mapping) and status.get("status") == "online"
+            if isinstance(status, Mapping):
+                if status.get("environmentId"):
+                    env_id = status.get("environmentId")
+                desc = status.get("descriptor")
+                if isinstance(desc, Mapping):
+                    if "label" in desc:
+                        label = desc.get("label")
+                    if desc.get("environmentId"):
+                        env_id = desc.get("environmentId")
+        except Exception:
+            live = False
+    else:
+        token = _token(ctx, ref)
+        try:
+            client = make_env_client(ref, _headers_fn(token))
+            desc = client.descriptor()
+            live = True
+            if isinstance(desc, dict):
+                label = desc.get("label")
+                if desc.get("environmentId"):
+                    env_id = desc.get("environmentId")
+        except Exception:
+            live = False
     return {
         "name": ref.name,
         "environmentId": env_id,
         "label": label,
         "mode": ref.mode,
-        "auth": "ok" if token else "expired",
+        "auth": "ok" if _has_auth(ctx, ref) else "expired",
         "live": live,
     }
 
@@ -280,6 +371,7 @@ def handle_t3_environments(args: dict, **kwargs) -> str:
         if ctx is None:
             return _stub("t3_environments")
         args = args or {}
+        _ensure_discovered(ctx)
         requested = args.get("environment")
         if requested:
             refs = [resolve_environment(ctx, requested)]
@@ -301,11 +393,8 @@ def handle_t3_list(args: dict, **kwargs) -> str:
         if ctx is None:
             return _stub("t3_list")
         args = args or {}
-        ref = resolve_environment(ctx, args.get("environment"))
-        token = _token(ctx, ref)
-        if not token:
-            return NotAuthenticated(ref.name).to_json()
-        snapshot = make_env_client(ref, _headers_fn(token)).shell()
+        ref = _resolved_env(ctx, args.get("environment"))
+        snapshot = _client_for(ctx, ref).shell()
         if not isinstance(snapshot, dict):
             snapshot = {}
         projects = []
@@ -344,14 +433,11 @@ def handle_t3_thread(args: dict, **kwargs) -> str:
                 "pass thread_id from t3_list or t3_new_thread",
             )
         thread_id = thread_id.strip()
-        ref = resolve_environment(ctx, args.get("environment"))
-        token = _token(ctx, ref)
-        if not token:
-            return NotAuthenticated(ref.name).to_json()
+        ref = _resolved_env(ctx, args.get("environment"))
         before = args.get("before_cursor")
         if before is not None:
             before = str(before)
-        snapshot = make_env_client(ref, _headers_fn(token)).thread(
+        snapshot = _client_for(ctx, ref).thread(
             thread_id,
             turn_limit=_turn_limit(args),
             before_cursor=before,
@@ -377,11 +463,8 @@ def handle_t3_thread(args: dict, **kwargs) -> str:
 
 
 def _dispatch_command(ctx, args: dict, command: dict) -> str:
-    ref = resolve_environment(ctx, args.get("environment"))
-    token = _token(ctx, ref)
-    if not token:
-        return NotAuthenticated(ref.name).to_json()
-    result = make_env_client(ref, _headers_fn(token)).dispatch(command)
+    ref = _resolved_env(ctx, args.get("environment"))
+    result = _client_for(ctx, ref).dispatch(command)
     payload = {
         "environment": ref.name,
         "type": command["type"],
@@ -559,15 +642,12 @@ def handle_t3_wait(args: dict, **kwargs) -> str:
                 "pass thread_id from t3_list or t3_new_thread",
             )
         thread_id = thread_id.strip()
-        ref = resolve_environment(ctx, args.get("environment"))
-        token = _token(ctx, ref)
-        if not token:
-            return NotAuthenticated(ref.name).to_json()
+        ref = _resolved_env(ctx, args.get("environment"))
         sleep = kwargs["sleep"] if "sleep" in kwargs else time.sleep
         monotonic = kwargs["monotonic"] if "monotonic" in kwargs else time.monotonic
         interval = _wait_interval(args)
         timeout = _wait_timeout(args)
-        client = make_env_client(ref, _headers_fn(token))
+        client = _client_for(ctx, ref)
         deadline = monotonic() + timeout
         last_thread: dict | None = None
         while True:

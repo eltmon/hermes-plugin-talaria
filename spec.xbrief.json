@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T14:30:00Z",
+    "updated": "2026-08-31T15:00:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -231,7 +231,7 @@
       {
         "id": "wi-9-relay-dpop",
         "title": "Mode B steps 2-4: relay discovery, DPoP proofs, environment credential exchange + refresh",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -249,9 +249,9 @@
         },
         "narrative": { "Action": "Implement PRD WI-9: ES256 keypair persisted as secret, RFC 9449 proof JWTs (htm/htu/iat/jti, typ dpop+jwt), relay client (list/status/connect/dpop-token), exchange_dpop at the tunnel URL, refresh both token tiers, merge discovered environments into resolve_environments with ctx.state cache." },
         "items": [
-          { "id": "wi-9-relay-dpop.ac1", "title": "DPoP proof JWTs verify with the stored public key and carry required header/claims", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-9-relay-dpop.ac2", "title": "Environment access token is re-exchanged before expiry and relay credential re-fetched when expired (mocked-clock test)", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-9-relay-dpop.ac3", "title": "t3_environments shows relay-discovered environments merged with mode-A entries", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-9-relay-dpop.ac1", "title": "DPoP proof JWTs verify with the stored public key and carry required header/claims", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-9-relay-dpop.ac2", "title": "Environment access token is re-exchanged before expiry and relay credential re-fetched when expired (mocked-clock test)", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-9-relay-dpop.ac3", "title": "t3_environments shows relay-discovered environments merged with mode-A entries", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {
