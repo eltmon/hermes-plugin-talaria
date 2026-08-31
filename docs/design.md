@@ -1,4 +1,4 @@
-# hermes-plugin-t3code — Design (rev 2)
+# Talaria (hermes-plugin-talaria) — Design (rev 2)
 
 Goal: a Hermes Agent plugin that lets a hermes-agent drive any T3 Code instance —
 list projects/threads, start turns (send prompts), respond to approvals, read agent
@@ -135,13 +135,13 @@ Traps found (do not re-derive):
 
 Per hermes' placement policy (CONTRIBUTING.md:88-101), an integration with someone
 else's product ships as a **standalone repo**, installable with
-`hermes plugins install <owner>/hermes-plugin-t3code` and listed on the community
+`hermes plugins install eltmon/hermes-plugin-talaria` and listed on the community
 index (`NousResearch/hermes-plugin-index`). Native plugin, not MCP: hermes' MCP
 client speaks stdio/StreamableHTTP/SSE only, so bridging t3code's WS would add a
 process for nothing.
 
 ```
-hermes-plugin-t3code/
+hermes-plugin-talaria/
 ├── plugin.yaml        # manifest_version: 2, kind: backend, config_schema, provides_tools
 ├── __init__.py        # register(ctx): tools + CLI commands + on_unload. NO sockets here
 │                      #   (hermes plugins doctor blocks outbound sockets during register())

@@ -10,7 +10,7 @@ The plugin id is `t3code`; the project name Talaria distinguishes this repo
 from T3 Code itself.
 
 ```
-hermes plugins install <owner>/hermes-plugin-talaria
+hermes plugins install eltmon/hermes-plugin-talaria
 hermes plugins enable t3code
 ```
 
