@@ -253,3 +253,9 @@ identically through the tunnel.
 ## Implementation notes vs PRD
 
 - **WI-1 directory loader:** PRD `files_scope` listed `talaria/__init__.py` as the register() home. Hermes' directory scanner / `hermes plugins doctor .` copies the plugin directory and loads *that* directory as a module (`hermes_cli/plugins.py` `_load_directory_module`). A repo-root `__init__.py` re-exports `talaria.register` so doctor and git-clone installs work; the pip entry point `t3code = "talaria"` still loads the package. Source wins.
+
+## CP-1 — `t3_wait` poll endpoint (decided fallback)
+
+`t3_wait` polls `GET /api/orchestration/shell` and reads that thread's `latestTurn` plus `hasPendingApprovals` / `hasPendingUserInput`. It does not poll thread detail.
+
+Why: CP-1 asked to verify on a live server that `GET /api/orchestration/threads/:id` exposes settled status. No live server confirmation was available, so the PRD fallback is the live path. Those shell fields are confirmed on `OrchestrationThreadShell` / `OrchestrationLatestTurn` (`state`: `running` | `interrupted` | `completed` | `error`). A thread-detail variant stays `TODO(CP-1)` in `talaria/tools.py` until a live server shows settled status there.

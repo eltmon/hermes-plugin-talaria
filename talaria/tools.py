@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -24,6 +25,11 @@ from .t3_env import T3EnvClient
 
 OUTPUT_CHAR_LIMIT = 32_768
 DEFAULT_TURN_LIMIT = 5
+DEFAULT_WAIT_INTERVAL = 5
+MIN_WAIT_INTERVAL = 2
+DEFAULT_WAIT_TIMEOUT = 300
+WAIT_EXCERPT_LIMIT = 200
+_SETTLED_STATES = frozenset({"completed", "interrupted", "error"})
 
 _HINT = "This tool is a scaffold stub; a later work item implements it."
 
@@ -444,5 +450,141 @@ def handle_t3_respond(args: dict, **kwargs) -> str:
         return _unexpected(exc)
 
 
+def _coerce_seconds(raw: Any, default: float) -> float:
+    if raw is None or isinstance(raw, bool):
+        return float(default)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _wait_interval(args: dict) -> float:
+    value = _coerce_seconds(args.get("interval"), DEFAULT_WAIT_INTERVAL)
+    return max(float(MIN_WAIT_INTERVAL), value)
+
+
+def _wait_timeout(args: dict) -> float:
+    value = _coerce_seconds(args.get("timeout"), DEFAULT_WAIT_TIMEOUT)
+    return max(0.0, value)
+
+
+def _thread_from_shell(snapshot: Any, thread_id: str) -> dict | None:
+    if not isinstance(snapshot, dict):
+        return None
+    for raw in snapshot.get("threads") or []:
+        if isinstance(raw, dict) and raw.get("id") == thread_id:
+            return raw
+    return None
+
+
+def _activity_excerpt(thread: Any) -> str | None:
+    if not isinstance(thread, dict):
+        return None
+    text = ""
+    progress = thread.get("planProgress")
+    if isinstance(progress, dict):
+        step = progress.get("step")
+        if isinstance(step, str) and step.strip():
+            text = step.strip()
+    if not text:
+        session = thread.get("session")
+        if isinstance(session, dict):
+            err = session.get("lastError")
+            if isinstance(err, str) and err.strip():
+                text = err.strip()
+    if not text:
+        latest = thread.get("latestTurn")
+        if isinstance(latest, dict):
+            parts = [
+                str(part)
+                for part in (latest.get("state"), latest.get("turnId"))
+                if part
+            ]
+            text = " ".join(parts)
+    if not text:
+        title = thread.get("title")
+        if isinstance(title, str) and title.strip():
+            text = title.strip()
+    if not text:
+        return None
+    if len(text) > WAIT_EXCERPT_LIMIT:
+        return text[: WAIT_EXCERPT_LIMIT - 1] + "…"
+    return text
+
+
+def _wait_terminal_status(thread: dict | None) -> str | None:
+    if not isinstance(thread, dict):
+        return None
+    if thread.get("hasPendingApprovals"):
+        return "approval"
+    if thread.get("hasPendingUserInput"):
+        return "user-input"
+    latest = thread.get("latestTurn")
+    if not isinstance(latest, dict):
+        return None
+    state = latest.get("state")
+    if state == "running":
+        return None
+    if state in _SETTLED_STATES or (isinstance(state, str) and state):
+        return "settled"
+    return None
+
+
+def _wait_payload(environment: str, thread_id: str, status: str, thread: dict | None) -> str:
+    row = thread if isinstance(thread, dict) else {}
+    return json.dumps(
+        {
+            "environment": environment,
+            "threadId": thread_id,
+            "status": status,
+            "latestTurn": _latest_turn_status(row.get("latestTurn")),
+            "hasPendingApprovals": bool(row.get("hasPendingApprovals")),
+            "hasPendingUserInput": bool(row.get("hasPendingUserInput")),
+            "excerpt": _activity_excerpt(row),
+        }
+    )
+
+
 def handle_t3_wait(args: dict, **kwargs) -> str:
-    return _stub("t3_wait")
+    try:
+        ctx = _ready_ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_wait")
+        args = args or {}
+        thread_id = args.get("thread_id")
+        if not isinstance(thread_id, str) or not thread_id.strip():
+            return json_error(
+                "thread_id is required",
+                "pass thread_id from t3_list or t3_new_thread",
+            )
+        thread_id = thread_id.strip()
+        ref = resolve_environment(ctx, args.get("environment"))
+        token = _token(ctx, ref)
+        if not token:
+            return NotAuthenticated(ref.name).to_json()
+        sleep = kwargs["sleep"] if "sleep" in kwargs else time.sleep
+        monotonic = kwargs["monotonic"] if "monotonic" in kwargs else time.monotonic
+        interval = _wait_interval(args)
+        timeout = _wait_timeout(args)
+        client = make_env_client(ref, _headers_fn(token))
+        deadline = monotonic() + timeout
+        last_thread: dict | None = None
+        while True:
+            # TODO(CP-1): poll GET /api/orchestration/threads/:id once a live
+            # server confirms thread detail exposes settled status. Decided
+            # fallback: GET /api/orchestration/shell and read that thread's
+            # latestTurn + hasPendingApprovals / hasPendingUserInput.
+            snapshot = client.shell()
+            last_thread = _thread_from_shell(snapshot, thread_id)
+            status = _wait_terminal_status(last_thread)
+            if status is not None:
+                return _wait_payload(ref.name, thread_id, status, last_thread)
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                return _wait_payload(ref.name, thread_id, "timeout", last_thread)
+            sleep(min(interval, remaining))
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)

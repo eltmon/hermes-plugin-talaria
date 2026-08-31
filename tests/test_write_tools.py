@@ -17,7 +17,6 @@ from talaria.tools import (
     handle_t3_new_thread,
     handle_t3_prompt,
     handle_t3_respond,
-    handle_t3_wait,
     set_client_factory,
 )
 
@@ -118,11 +117,6 @@ def test_import_opens_no_socket(socket_guard):
 def test_plugin_runtime_mode_default_is_never_full_access():
     assert commands.DEFAULT_RUNTIME_MODE == "approval-required"
     assert commands.DEFAULT_RUNTIME_MODE != "full-access"
-
-
-def test_t3_wait_stays_stub_even_with_ctx():
-    payload = json.loads(handle_t3_wait({"thread_id": THREAD_ID}, extra=True, ctx=_ctx_authed()))
-    assert payload["error"] == "not implemented"
 
 
 def test_prompt_turn_start_matches_prd_shape(monkeypatch, mock_http):

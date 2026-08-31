@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T14:15:00Z",
+    "updated": "2026-08-31T14:30:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -181,7 +181,7 @@
       {
         "id": "wi-7-wait",
         "title": "t3_wait: poll until turn settles / approval pending / timeout (CP-1 gate)",
-        "status": "pending",
+        "status": "completed",
         "priority": "medium",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -199,8 +199,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-7 with checkpoint CP-1: verify on a live server that thread detail exposes turn-settled status; if not, use the decided fallback of polling the shell snapshot's latestTurn/pending flags. Bounded timeout, floor 2s interval, mocked clock in tests." },
         "items": [
-          { "id": "wi-7-wait.ac1", "title": "CP-1 resolved and recorded in docs/design.md: which endpoint t3_wait polls and why", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-7-wait.ac2", "title": "State-machine tests cover settle, approval interrupt, and timeout without real sleeps", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-7-wait.ac1", "title": "CP-1 resolved and recorded in docs/design.md: which endpoint t3_wait polls and why", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-7-wait.ac2", "title": "State-machine tests cover settle, approval interrupt, and timeout without real sleeps", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {
