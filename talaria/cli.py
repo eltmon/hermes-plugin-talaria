@@ -11,6 +11,11 @@ from .auth_direct import (
     login,
     logout,
 )
+from .auth_t3connect import (
+    ConnectAuthError,
+    complete_connect,
+    start_connect,
+)
 from .errors import TalariaError
 
 
@@ -27,9 +32,14 @@ def _setup_argparse(subparser: argparse.ArgumentParser) -> None:
     )
     login_p.add_argument("--name", default=None, help="Environment name to store")
 
-    subs.add_parser(
+    connect_p = subs.add_parser(
         "connect",
         help="Sign in to T3 Connect (headless Clerk PKCE)",
+    )
+    connect_p.add_argument(
+        "--code",
+        default=None,
+        help='Pasted "<code>.<state>" blob from the hosted callback page',
     )
 
     subs.add_parser(
@@ -53,8 +63,10 @@ def t3code_command(args: argparse.Namespace, ctx=None, *, store=None, client=Non
         return _cmd_login(args, ctx, store=store, client=client)
     if sub == "logout":
         return _cmd_logout(args, ctx, store=store)
-    if sub in ("connect", "environments"):
-        print(f"hermes t3code {sub}: not implemented yet")
+    if sub == "connect":
+        return _cmd_connect(args, ctx, store=store, client=client)
+    if sub == "environments":
+        print("hermes t3code environments: not implemented yet")
         return 0
     print(f"unknown subcommand: {sub}")
     return 2
@@ -104,6 +116,24 @@ def _cmd_logout(args, ctx, *, store=None) -> int:
         print(exc.hint or exc.error, file=sys.stderr)
         return 1
     print(f"Logged out {env!r}")
+    return 0
+
+
+def _cmd_connect(args, ctx, *, store=None, client=None) -> int:
+    blob = getattr(args, "code", None)
+    if blob:
+        try:
+            complete_connect(blob, ctx=ctx, store=store, client=client)
+        except ConnectAuthError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        print("Connected to T3 Connect")
+        return 0
+    session = start_connect(ctx=ctx, store=store)
+    print("Open this URL to authorize T3 Connect:")
+    print(f"  {session.authorize_url}")
+    print("")
+    print("Then run: hermes t3code connect --code '<paste the code here>'")
     return 0
 
 

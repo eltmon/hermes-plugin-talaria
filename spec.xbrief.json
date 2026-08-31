@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T14:10:00Z",
+    "updated": "2026-08-31T14:15:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -206,7 +206,7 @@
       {
         "id": "wi-8-clerk-oauth",
         "title": "Mode B step 1: headless Clerk PKCE OAuth (`hermes t3code connect`)",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -224,8 +224,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-8 (6-step flow): S256 PKCE + state, hosted /connect URL with hash params, accept pasted '<code>.<state>' blob, validate state, exchange at Clerk frontend-API /oauth/token derived from the publishable key, store/refresh Clerk tokens as secrets." },
         "items": [
-          { "id": "wi-8-clerk-oauth.ac1", "title": "pk_live_Y2xlcmsudDMuY29kZXMk derives frontend host clerk.t3.codes in a test", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-8-clerk-oauth.ac2", "title": "Code blob with wrong state or malformed shape is rejected with a user-facing message", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-8-clerk-oauth.ac1", "title": "pk_live_Y2xlcmsudDMuY29kZXMk derives frontend host clerk.t3.codes in a test", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-8-clerk-oauth.ac2", "title": "Code blob with wrong state or malformed shape is rejected with a user-facing message", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {
