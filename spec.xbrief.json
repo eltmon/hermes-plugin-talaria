@@ -1,0 +1,378 @@
+{
+  "xBRIEFInfo": {
+    "version": "0.8",
+    "created": "2026-08-31T12:00:00Z",
+    "author": "claude-fable-5",
+    "description": "Plan for talaria-v1: Talaria — Hermes Agent plugin (id t3code) that drives remote T3 Code instances"
+  },
+  "plan": {
+    "id": "talaria-v1",
+    "title": "Talaria: Hermes plugin to drive T3 Code environments (M1 HTTP core + auth, M2 WebSocket)",
+    "status": "approved",
+    "uid": "5d2c6969-77e8-49e0-831d-53754fa03173",
+    "author": "agent:claude-fable-5",
+    "sequence": 1,
+    "created": "2026-08-31T12:00:00Z",
+    "updated": "2026-08-31T12:00:00Z",
+    "references": [
+      { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
+      { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
+    ],
+    "tags": ["hermes-plugin", "t3code", "t3-connect", "python"],
+    "narratives": {
+      "Problem": "Hermes-agent (running remotely, e.g. Fly.io) has no way to drive T3 Code instances that run on other machines behind NAT: no thread listing, no prompting, no approval handling, no file access. T3 Code's MCP server only covers browser previews, and hermes' MCP client lacks a WebSocket transport, so no existing bridge exists.",
+      "Proposal": "A native hermes plugin (id `t3code`) with one mode-agnostic T3 environment API layer and two auth front ends: mode A (direct URL + `t3 pair` bearer) and mode B (T3 Connect: headless Clerk PKCE OAuth, relay discovery, DPoP, Cloudflare tunnel). Milestone 1 is HTTP-only (list/prompt/approve/wait); milestone 2 adds the Effect-RPC WebSocket client for remote file tools and live event push. Full contract details, endpoint transcriptions, and decisions are in docs/PRD.md — read it before starting any item.",
+      "NonGoals": "- No t3code-side changes; this plugin is a pure client.\n- No terminals, checkpoint revert, archive/snooze, or prompt attachments in this plan.\n- No pairing-over-tunnel mode until checkpoint CP-2 is tested after M1.\n- No auto-installation of python dependencies (hermes never auto-installs; declare only).\n- No secrets in config.yaml, plugin-data/, or the install directory."
+    },
+    "autoDecisions": [],
+    "items": [
+      {
+        "id": "wi-1-scaffold",
+        "title": "Repo scaffold and plugin skeleton (plugin.yaml, pyproject, register(ctx), CI)",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "infra",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": true,
+          "inspectionDepth": "fast",
+          "foundationFor": ["wi-2-config", "wi-3-env-client"],
+          "files_scope": ["plugin.yaml", "pyproject.toml", "talaria/__init__.py", "talaria/schemas.py", "talaria/tools.py", "talaria/config.py", "talaria/errors.py", "tests/conftest.py", ".github/workflows/ci.yml"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/ -q"],
+          "expected_outputs": ["registration test passes: fake ctx receives every declared tool; socket-guard fixture reports no socket at import/register time"],
+          "readiness": "ready",
+          "traces": ["NFR-4", "NFR-6"]
+        },
+        "narrative": { "Action": "Create the package layout per PRD WI-1: manifest v2 (name t3code, kind backend, config_schema, python_dependencies [cryptography]), entry point hermes_agent.plugins -> talaria, register(ctx) wiring stub tools/CLI, CI running pytest and hermes plugins doctor." },
+        "items": [
+          { "id": "wi-1-scaffold.ac1", "title": "register(ctx) with a fake ctx registers every tool name declared in plugin.yaml provides_tools", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-1-scaffold.ac2", "title": "Socket-guard test proves no module opens a socket at import or registration", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-2-config",
+        "title": "Config + secret resolution module (environments map, scoped secret reads, error types)",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "simple",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/config.py", "talaria/errors.py", "tests/test_config.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_config.py -q"],
+          "expected_outputs": ["resolution-order and secret-name-mangling tests pass"],
+          "readiness": "ready",
+          "traces": ["FR-12", "NFR-2"]
+        },
+        "narrative": { "Action": "Implement PRD WI-2: resolve_environments(ctx) with arg/default/sole/ambiguous order, T3CODE_TOKEN_<NAME> mangling, secret_scope-based get/set with UnscopedSecretError fallback, JSON-serializable error types with actionable hint fields." },
+        "items": [
+          { "id": "wi-2-config.ac1", "title": "Environment resolution covers explicit arg, default_environment, sole entry, and ambiguous error listing options", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-2-config.ac2", "title": "Secret name mangling: my-laptop -> T3CODE_TOKEN_MY_LAPTOP", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-3-env-client",
+        "title": "Mode-agnostic T3 environment HTTP client (descriptor/shell/thread/dispatch/ws-ticket/exchanges)",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": true,
+          "inspectionDepth": "fast",
+          "foundationFor": ["wi-4-login", "wi-5-read-tools", "wi-6-write-tools", "wi-7-wait", "wi-9-relay-dpop", "wi-10-ws-client"],
+          "files_scope": ["talaria/t3_env.py", "tests/test_t3_env.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_t3_env.py -q"],
+          "expected_outputs": ["mocked-transport tests pass for every method; 401 maps to NotAuthenticated; pairing exchange asserts exact subject_token_type"],
+          "readiness": "ready",
+          "traces": ["FR-2", "FR-3", "FR-4", "FR-7", "NFR-1", "NFR-3", "NFR-5"]
+        },
+        "narrative": { "Action": "Implement PRD WI-3: lazy-singleton httpx client with injected auth-header callable; methods descriptor, shell, thread, dispatch, ws_ticket, exchange_pairing, exchange_dpop; error mapping; unknown fields passed through." },
+        "items": [
+          { "id": "wi-3-env-client.ac1", "title": "Each endpoint method has a mocked-transport test including a 401 -> NotAuthenticated case", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-3-env-client.ac2", "title": "exchange_pairing sends the exact RFC 8693 form body from the PRD contract table", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-4-login",
+        "title": "Mode A: `hermes t3code login <pairing-url>` CLI (parse both URL shapes, exchange, store secret)",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/auth_direct.py", "talaria/cli.py", "tests/test_auth_direct.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_auth_direct.py -q"],
+          "expected_outputs": ["both pairing-URL shapes parse; token stored only as secret, never in config"],
+          "readiness": "ready",
+          "traces": ["FR-7", "NFR-2"]
+        },
+        "narrative": { "Action": "Implement PRD WI-4: parse token from URL hash (#token=...) and hosted variant (?host=... origin), fetch descriptor, exchange_pairing, store bearer via config module secrets, register login/logout CLI commands." },
+        "items": [
+          { "id": "wi-4-login.ac1", "title": "Local (#token) and hosted (?host= + #token) pairing URLs both authenticate in tests", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-4-login.ac2", "title": "Test asserts the bearer never appears in ctx config values, only in the secret store", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-5-read-tools",
+        "title": "Read tools: t3_environments, t3_list, t3_thread",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/schemas.py", "talaria/tools.py", "tests/test_read_tools.py", "tests/fixtures/"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_read_tools.py -q"],
+          "expected_outputs": ["golden-output tests pass from recorded shell/thread fixtures; truncation marker asserted"],
+          "readiness": "ready",
+          "traces": ["FR-1", "FR-2", "FR-3", "NFR-3"]
+        },
+        "narrative": { "Action": "Implement PRD WI-5: LLM-facing schemas with strong descriptions; handlers condense shell/thread payloads (worktreePath, latestTurn, pending flags), truncate oversized output with an explicit marker, return JSON strings, never raise." },
+        "items": [
+          { "id": "wi-5-read-tools.ac1", "title": "t3_list output includes worktreePath, latestTurn status, and pending flags per thread (golden fixture test)", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-5-read-tools.ac2", "title": "Oversized t3_thread output is truncated with a truncated:true marker", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-6-write-tools",
+        "title": "Write tools: t3_new_thread, t3_prompt, t3_interrupt, t3_respond (dispatch commands)",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/schemas.py", "talaria/tools.py", "talaria/commands.py", "tests/test_write_tools.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_write_tools.py -q"],
+          "expected_outputs": ["dispatched payloads match the PRD ClientOrchestrationCommand shapes field-for-field; runtimeMode defaults to approval-required"],
+          "readiness": "ready",
+          "traces": ["FR-4", "FR-5", "NFR-3"]
+        },
+        "narrative": { "Action": "Implement PRD WI-6: command builders generating uuid4 ids and ISO createdAt; t3_prompt with model_selection/runtime_mode/interaction_mode args; t3_respond handles approval and user-input kinds; never default to full-access." },
+        "items": [
+          { "id": "wi-6-write-tools.ac1", "title": "thread.turn.start payload matches the PRD transcription exactly (fixture comparison)", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-6-write-tools.ac2", "title": "Omitted runtime_mode dispatches approval-required, and attachments default to []", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-7-wait",
+        "title": "t3_wait: poll until turn settles / approval pending / timeout (CP-1 gate)",
+        "status": "pending",
+        "priority": "medium",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/tools.py", "tests/test_wait.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_wait.py -q"],
+          "expected_outputs": ["settle, approval-interrupt, and timeout paths pass with a mocked clock (no real sleeps)"],
+          "readiness": "ready",
+          "traces": ["FR-6"]
+        },
+        "narrative": { "Action": "Implement PRD WI-7 with checkpoint CP-1: verify on a live server that thread detail exposes turn-settled status; if not, use the decided fallback of polling the shell snapshot's latestTurn/pending flags. Bounded timeout, floor 2s interval, mocked clock in tests." },
+        "items": [
+          { "id": "wi-7-wait.ac1", "title": "CP-1 resolved and recorded in docs/design.md: which endpoint t3_wait polls and why", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-7-wait.ac2", "title": "State-machine tests cover settle, approval interrupt, and timeout without real sleeps", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-8-clerk-oauth",
+        "title": "Mode B step 1: headless Clerk PKCE OAuth (`hermes t3code connect`)",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "complex",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/auth_t3connect.py", "talaria/cli.py", "tests/test_clerk_oauth.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_clerk_oauth.py -q"],
+          "expected_outputs": ["PKCE, state validation, code-blob parsing, token exchange shape, and pk->hostname derivation tests pass"],
+          "readiness": "ready",
+          "traces": ["FR-8", "NFR-2"]
+        },
+        "narrative": { "Action": "Implement PRD WI-8 (6-step flow): S256 PKCE + state, hosted /connect URL with hash params, accept pasted '<code>.<state>' blob, validate state, exchange at Clerk frontend-API /oauth/token derived from the publishable key, store/refresh Clerk tokens as secrets." },
+        "items": [
+          { "id": "wi-8-clerk-oauth.ac1", "title": "pk_live_Y2xlcmsudDMuY29kZXMk derives frontend host clerk.t3.codes in a test", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-8-clerk-oauth.ac2", "title": "Code blob with wrong state or malformed shape is rejected with a user-facing message", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-9-relay-dpop",
+        "title": "Mode B steps 2-4: relay discovery, DPoP proofs, environment credential exchange + refresh",
+        "status": "pending",
+        "priority": "high",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "complex",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/dpop.py", "talaria/auth_t3connect.py", "talaria/tools.py", "tests/test_dpop.py", "tests/test_relay.py"],
+          "files_scope_confidence": "medium",
+          "verify_commands": ["python -m pytest tests/test_dpop.py tests/test_relay.py -q"],
+          "expected_outputs": ["proof JWTs verify against the public key; refresh state machine passes with mocked clock; t3_environments lists discovered environments"],
+          "readiness": "ready",
+          "traces": ["FR-1", "FR-9", "FR-12", "NFR-2"]
+        },
+        "narrative": { "Action": "Implement PRD WI-9: ES256 keypair persisted as secret, RFC 9449 proof JWTs (htm/htu/iat/jti, typ dpop+jwt), relay client (list/status/connect/dpop-token), exchange_dpop at the tunnel URL, refresh both token tiers, merge discovered environments into resolve_environments with ctx.state cache." },
+        "items": [
+          { "id": "wi-9-relay-dpop.ac1", "title": "DPoP proof JWTs verify with the stored public key and carry required header/claims", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-9-relay-dpop.ac2", "title": "Environment access token is re-exchanged before expiry and relay credential re-fetched when expired (mocked-clock test)", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-9-relay-dpop.ac3", "title": "t3_environments shows relay-discovered environments merged with mode-A entries", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-10-ws-client",
+        "title": "M2: Effect RPC WebSocket client (CP-3 frame capture first)",
+        "status": "pending",
+        "priority": "medium",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "complex",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": true,
+          "inspectionDepth": "deep",
+          "foundationFor": ["wi-11-file-tools", "wi-12-event-push"],
+          "files_scope": ["talaria/t3_ws.py", "tests/test_ws.py", "tests/fixtures/frames/", "docs/design.md"],
+          "files_scope_confidence": "medium",
+          "verify_commands": ["python -m pytest tests/test_ws.py -q"],
+          "expected_outputs": ["round-trip against recorded frame transcript passes; reconnect/backoff tests pass with mocked clock"],
+          "readiness": "ready",
+          "traces": ["FR-10", "NFR-1", "NFR-5"]
+        },
+        "narrative": { "Action": "Implement PRD WI-10. FIRST resolve checkpoint CP-3: capture literal Effect RPC frames from a live t3code server and document the schema in docs/design.md. Then build the async websockets client: ws-ticket handshake, request correlation, streaming responses, expo backoff capped 30s, ping 30s, auth-failure latching with fresh-ticket retry." },
+        "items": [
+          { "id": "wi-10-ws-client.ac1", "title": "CP-3 resolved: captured frame schema documented in docs/design.md before encoder written", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-10-ws-client.ac2", "title": "Fixture-driven fake server round-trips a request/response and a streaming subscription", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-10-ws-client.ac3", "title": "Reconnect/backoff and ticket-rejection latching tested with mocked clock, no real sleeps", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-11-file-tools",
+        "title": "M2: remote file tools (t3_ls, t3_read_file, t3_write_file, t3_search)",
+        "status": "pending",
+        "priority": "medium",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/schemas.py", "talaria/tools.py", "tests/test_file_tools.py"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/test_file_tools.py -q"],
+          "expected_outputs": ["fixture tests per RPC pass; read cap truncation and scope-error surfacing asserted"],
+          "readiness": "ready",
+          "traces": ["FR-10", "NFR-3"]
+        },
+        "narrative": { "Action": "Implement PRD WI-11 over projects.listEntries/readFile/writeFile/searchContents via the WS client: 256 KiB read cap with truncated marker, writes require explicit project_id + path, authorization errors name the missing scope." },
+        "items": [
+          { "id": "wi-11-file-tools.ac1", "title": "Each file tool has a fixture-driven test including an authorization-error case naming the missing scope", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-12-event-push",
+        "title": "M2: live event push (t3_watch/t3_unwatch, subscribe streams, inject_message)",
+        "status": "pending",
+        "priority": "medium",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "complex",
+          "kind": "backend",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["talaria/watch.py", "talaria/tools.py", "tests/test_watch.py"],
+          "files_scope_confidence": "medium",
+          "verify_commands": ["python -m pytest tests/test_watch.py -q"],
+          "expected_outputs": ["reducer dedupe/snapshot tests pass; no grant -> no injection, helpful JSON returned"],
+          "readiness": "ready",
+          "traces": ["FR-11"]
+        },
+        "narrative": { "Action": "Implement PRD WI-12: lazy background reader via ctx.spawn_task started from async t3_watch handler; subscribeThread/subscribeShell folding with afterSequence cursor in ctx.state; salient events pushed via ctx.inject_message gated on allow_gateway_injection; t3_unwatch stops the reader (reverse state)." },
+        "items": [
+          { "id": "wi-12-event-push.ac1", "title": "Sequence dedupe and snapshot replacement covered by reducer unit tests", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-12-event-push.ac2", "title": "Without allow_gateway_injection, watch returns grant instructions and injects nothing", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      },
+      {
+        "id": "wi-13-docs",
+        "title": "Docs + distribution: README walkthroughs, CONTRIBUTING, plugin-index prep (CP-4)",
+        "status": "pending",
+        "priority": "medium",
+        "created": "2026-08-31T12:00:00Z",
+        "metadata": {
+          "difficulty": "medium",
+          "kind": "docs",
+          "issueLabel": "talaria-v1",
+          "requiresInspection": false,
+          "inspectionDepth": "fast",
+          "files_scope": ["README.md", "CONTRIBUTING.md", "docs/PRD.md", "docs/design.md"],
+          "files_scope_confidence": "high",
+          "verify_commands": ["python -m pytest tests/ -q"],
+          "expected_outputs": ["docs review confirms every config key and secret name in code appears in README; fresh-machine walkthrough has no undocumented step"],
+          "readiness": "ready",
+          "traces": ["NFR-6"]
+        },
+        "narrative": { "Action": "Execute PRD WI-13: README install/enable/login/connect walkthroughs, config + secret reference, allow_gateway_injection note, tested t3code version; CONTRIBUTING.md dev setup; resolve checkpoint CP-4 (re-verify plugin index location, which 404'd on 2026-08-31) and prepare the index entry with an immutable ref." },
+        "items": [
+          { "id": "wi-13-docs.ac1", "title": "Every config key and secret name present in code is documented in README", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-13-docs.ac2", "title": "CP-4 resolved: canonical plugin-index location confirmed and submission entry drafted with immutable ref", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+        ]
+      }
+    ],
+    "edges": [
+      { "from": "wi-1-scaffold", "to": "wi-2-config", "type": "blocks" },
+      { "from": "wi-2-config", "to": "wi-3-env-client", "type": "blocks" },
+      { "from": "wi-3-env-client", "to": "wi-4-login", "type": "blocks" },
+      { "from": "wi-3-env-client", "to": "wi-5-read-tools", "type": "blocks" },
+      { "from": "wi-3-env-client", "to": "wi-6-write-tools", "type": "blocks" },
+      { "from": "wi-3-env-client", "to": "wi-7-wait", "type": "blocks" },
+      { "from": "wi-3-env-client", "to": "wi-9-relay-dpop", "type": "blocks" },
+      { "from": "wi-3-env-client", "to": "wi-10-ws-client", "type": "blocks" },
+      { "from": "wi-5-read-tools", "to": "wi-9-relay-dpop", "type": "blocks" },
+      { "from": "wi-8-clerk-oauth", "to": "wi-9-relay-dpop", "type": "blocks" },
+      { "from": "wi-10-ws-client", "to": "wi-11-file-tools", "type": "blocks" },
+      { "from": "wi-10-ws-client", "to": "wi-12-event-push", "type": "blocks" },
+      { "from": "wi-4-login", "to": "wi-13-docs", "type": "blocks" },
+      { "from": "wi-9-relay-dpop", "to": "wi-13-docs", "type": "blocks" },
+      { "from": "wi-11-file-tools", "to": "wi-13-docs", "type": "blocks" },
+      { "from": "wi-12-event-push", "to": "wi-13-docs", "type": "blocks" }
+    ]
+  }
+}
