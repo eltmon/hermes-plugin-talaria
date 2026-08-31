@@ -100,12 +100,26 @@ def test_register_t3code_cli(socket_guard):
         assert handler_fn(ns) == 0
 
 
+_UNIMPLEMENTED = {
+    "t3_new_thread",
+    "t3_prompt",
+    "t3_interrupt",
+    "t3_respond",
+    "t3_wait",
+}
+
+
 def test_stub_handlers_return_json_error(socket_guard):
     _mod, ctx = _register(socket_guard)
     for row in ctx.tools:
         payload = json.loads(row["handler"]({}, extra=True))
-        assert payload["error"] == "not implemented"
-        assert "hint" in payload
+        assert isinstance(payload, dict)
+        if row["name"] in _UNIMPLEMENTED:
+            assert payload["error"] == "not implemented"
+            assert "hint" in payload
+        else:
+            # Read tools are implemented; FakeCtx has no config, so JSON error.
+            assert "error" in payload or "environments" in payload
 
 
 def test_directory_loader_root_register_reexport(socket_guard):

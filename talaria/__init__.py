@@ -14,6 +14,7 @@ from .schemas import (
     T3_WAIT_SCHEMA,
 )
 from .tools import (
+    bind_ctx,
     handle_t3_environments,
     handle_t3_interrupt,
     handle_t3_list,
@@ -37,11 +38,13 @@ _TOOLS = (
 
 
 def _on_unload() -> None:
-    """Close lazy HTTP/WS clients. WI-1 has none."""
+    """Drop bound ctx; later items close HTTP/WS clients here."""
+    bind_ctx(None)
 
 
 def register(ctx) -> None:
     """Register stub tools and ``hermes t3code`` CLI. No network I/O."""
+    bind_ctx(ctx)
     for name, schema, handler in _TOOLS:
         ctx.register_tool(
             name=name,

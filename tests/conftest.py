@@ -21,6 +21,19 @@ def _deny(*_args, **_kwargs):
     )
 
 
+@pytest.fixture(autouse=True)
+def _reset_plugin_runtime():
+    """Drop bound ctx / MockTransport factory so files cannot leak across tests."""
+    yield
+    try:
+        from talaria.tools import bind_ctx, set_client_factory
+
+        bind_ctx(None)
+        set_client_factory(None)
+    except Exception:
+        pass
+
+
 @pytest.fixture
 def socket_guard(monkeypatch):
     monkeypatch.setattr(socket, "socket", _deny)

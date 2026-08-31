@@ -1,0 +1,12 @@
+{
+  "environments": [
+    {
+      "name": "laptop",
+      "environmentId": "env-laptop-1",
+      "label": "Eltmon's MacBook",
+      "mode": "direct",
+      "auth": "ok",
+      "live": true
+    }
+  ]
+}

@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T13:30:00Z",
+    "updated": "2026-08-31T13:45:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -131,7 +131,7 @@
       {
         "id": "wi-5-read-tools",
         "title": "Read tools: t3_environments, t3_list, t3_thread",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -149,8 +149,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-5: LLM-facing schemas with strong descriptions; handlers condense shell/thread payloads (worktreePath, latestTurn, pending flags), truncate oversized output with an explicit marker, return JSON strings, never raise." },
         "items": [
-          { "id": "wi-5-read-tools.ac1", "title": "t3_list output includes worktreePath, latestTurn status, and pending flags per thread (golden fixture test)", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-5-read-tools.ac2", "title": "Oversized t3_thread output is truncated with a truncated:true marker", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-5-read-tools.ac1", "title": "t3_list output includes worktreePath, latestTurn status, and pending flags per thread (golden fixture test)", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-5-read-tools.ac2", "title": "Oversized t3_thread output is truncated with a truncated:true marker", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {

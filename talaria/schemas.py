@@ -23,10 +23,12 @@ T3_ENVIRONMENTS_SCHEMA = _schema(
     "t3_environments",
     (
         "List configured (mode A, direct URL) and T3 Connect-discovered (mode B) "
-        "T3 Code environments, with label, connectivity mode, auth status, and "
-        "liveness. Call this first when you need to know which environments exist "
-        "or whether login/connect is required before listing threads or sending "
-        "prompts."
+        "T3 Code environments. Each row has name, environmentId, descriptor label, "
+        "mode (direct | t3connect), auth (ok if a pairing secret is stored, expired "
+        "if not — the token is never returned), and live (true when GET "
+        "/.well-known/t3/environment succeeds). Call this first when you need to "
+        "know which environments exist or whether login/connect is required before "
+        "listing threads or sending prompts. Optional environment filters to one."
     ),
     {"environment": ENVIRONMENT},
 )
@@ -34,11 +36,12 @@ T3_ENVIRONMENTS_SCHEMA = _schema(
 T3_LIST_SCHEMA = _schema(
     "t3_list",
     (
-        "List projects and threads in a T3 Code environment from the orchestration "
-        "shell snapshot. Each project includes id, title, and path. Each thread "
-        "includes id, title, worktreePath, latestTurn status, hasPendingApprovals, "
-        "and hasPendingUserInput. Use this to find a thread to read, prompt, "
-        "interrupt, or respond to."
+        "List projects and threads in a T3 Code environment from GET "
+        "/api/orchestration/shell. Each project includes id, title, and path "
+        "(workspaceRoot). Each thread includes id, projectId, title, worktreePath, "
+        "latestTurn {turnId, state}, hasPendingApprovals, and hasPendingUserInput. "
+        "Use this to find a thread to read, prompt, interrupt, or respond to. "
+        "Respond with t3_respond when a pending flag is true."
     ),
     {"environment": ENVIRONMENT},
 )
@@ -46,9 +49,13 @@ T3_LIST_SCHEMA = _schema(
 T3_THREAD_SCHEMA = _schema(
     "t3_thread",
     (
-        "Read a T3 Code thread's turn history and agent output. Use after t3_list "
+        "Read a T3 Code thread's turn history and extracted agent (assistant) "
+        "output text from GET /api/orchestration/threads/:id. Use after t3_list "
         "when you need conversation contents, not just the snapshot. turn_limit "
-        "defaults to 5; before_cursor pages further back through older turns."
+        "defaults to 5 (sent as turnLimit). before_cursor is passed through as "
+        "beforeCursor; the response page.beforeCursor is the next paging token. "
+        "If the JSON would exceed 32768 characters, older turns are omitted "
+        "(latest kept) and truncated is true."
     ),
     {
         "environment": ENVIRONMENT,
@@ -58,11 +65,14 @@ T3_THREAD_SCHEMA = _schema(
         },
         "turn_limit": {
             "type": "integer",
-            "description": "Maximum turns to return (default 5).",
+            "description": "Maximum turns to return (default 5). Sent as turnLimit.",
         },
         "before_cursor": {
             "type": "string",
-            "description": "Paging cursor from a previous t3_thread response.",
+            "description": (
+                "Paging cursor from a previous t3_thread page.beforeCursor; "
+                "passed through to the environment as beforeCursor."
+            ),
         },
     },
     required=["thread_id"],

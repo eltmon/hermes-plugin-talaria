@@ -1,0 +1,83 @@
+{
+  "snapshotSequence": 99,
+  "thread": {
+    "id": "thr-huge",
+    "projectId": "proj-hermes",
+    "title": "Oversized history",
+    "worktreePath": "/tmp/huge-worktree",
+    "latestTurn": {
+      "turnId": "turn-late",
+      "state": "completed",
+      "requestedAt": "2026-08-31T16:00:00.000Z",
+      "startedAt": "2026-08-31T16:00:01.000Z",
+      "completedAt": "2026-08-31T16:05:00.000Z",
+      "assistantMessageId": "msg-late"
+    },
+    "createdAt": "2026-08-31T12:00:00.000Z",
+    "updatedAt": "2026-08-31T16:05:00.000Z",
+    "archivedAt": null,
+    "settledOverride": null,
+    "settledAt": null,
+    "deletedAt": null,
+    "messages": [
+      {
+        "id": "msg-u-early",
+        "role": "user",
+        "text": "Dump the early context.",
+        "turnId": "turn-early",
+        "streaming": false,
+        "createdAt": "2026-08-31T12:00:00.000Z",
+        "updatedAt": "2026-08-31T12:00:00.000Z"
+      },
+      {
+        "id": "msg-a-early",
+        "role": "assistant",
+        "text": "__EARLY_OUTPUT__",
+        "turnId": "turn-early",
+        "streaming": false,
+        "createdAt": "2026-08-31T12:01:00.000Z",
+        "updatedAt": "2026-08-31T12:01:00.000Z"
+      },
+      {
+        "id": "msg-u-mid",
+        "role": "user",
+        "text": "Dump the middle context.",
+        "turnId": "turn-mid",
+        "streaming": false,
+        "createdAt": "2026-08-31T14:00:00.000Z",
+        "updatedAt": "2026-08-31T14:00:00.000Z"
+      },
+      {
+        "id": "msg-a-mid",
+        "role": "assistant",
+        "text": "__MID_OUTPUT__",
+        "turnId": "turn-mid",
+        "streaming": false,
+        "createdAt": "2026-08-31T14:01:00.000Z",
+        "updatedAt": "2026-08-31T14:01:00.000Z"
+      },
+      {
+        "id": "msg-u-late",
+        "role": "user",
+        "text": "Keep this latest turn.",
+        "turnId": "turn-late",
+        "streaming": false,
+        "createdAt": "2026-08-31T16:00:00.000Z",
+        "updatedAt": "2026-08-31T16:00:00.000Z"
+      },
+      {
+        "id": "msg-a-late",
+        "role": "assistant",
+        "text": "__LATE_OUTPUT__",
+        "turnId": "turn-late",
+        "streaming": false,
+        "createdAt": "2026-08-31T16:05:00.000Z",
+        "updatedAt": "2026-08-31T16:05:00.000Z"
+      }
+    ],
+    "proposedPlans": [],
+    "activities": [],
+    "checkpoints": [],
+    "session": null
+  }
+}

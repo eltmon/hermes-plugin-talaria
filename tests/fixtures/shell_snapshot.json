@@ -1,0 +1,97 @@
+{
+  "snapshotSequence": 42,
+  "updatedAt": "2026-08-31T15:04:11.000Z",
+  "unexpectedField": { "nested": true, "keep": "on-wire" },
+  "projects": [
+    {
+      "id": "proj-hermes",
+      "title": "hermes-plugin-talaria",
+      "workspaceRoot": "/Users/eltmon/Projects/hermes-plugin-talaria",
+      "defaultModelSelection": { "instanceId": "codex", "model": "gpt-5.4" },
+      "scripts": [],
+      "createdAt": "2026-08-01T00:00:00.000Z",
+      "updatedAt": "2026-08-31T15:00:00.000Z",
+      "faviconPath": null,
+      "brandNewProjectKey": "ignore-in-condensed"
+    },
+    {
+      "id": "proj-t3",
+      "title": "t3code",
+      "workspaceRoot": "/Users/eltmon/Projects/t3code",
+      "defaultModelSelection": null,
+      "scripts": [],
+      "createdAt": "2026-07-01T00:00:00.000Z",
+      "updatedAt": "2026-08-30T12:00:00.000Z"
+    }
+  ],
+  "threads": [
+    {
+      "id": "thr-fix-flaky",
+      "projectId": "proj-hermes",
+      "title": "Fix the flaky read-tools test",
+      "modelSelection": { "instanceId": "codex", "model": "gpt-5.4" },
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "branch": "feature/talaria-v1",
+      "worktreePath": "/Users/eltmon/Projects/hermes-plugin-talaria/.t3/worktrees/thr-fix-flaky",
+      "latestTurn": {
+        "turnId": "turn-7",
+        "state": "running",
+        "requestedAt": "2026-08-31T15:03:00.000Z",
+        "startedAt": "2026-08-31T15:03:01.000Z",
+        "completedAt": null,
+        "assistantMessageId": "msg-a7",
+        "extraTurnField": "ignore"
+      },
+      "createdAt": "2026-08-31T14:00:00.000Z",
+      "updatedAt": "2026-08-31T15:03:40.000Z",
+      "archivedAt": null,
+      "settledOverride": null,
+      "settledAt": null,
+      "session": {
+        "threadId": "thr-fix-flaky",
+        "status": "running",
+        "providerName": "codex",
+        "runtimeMode": "approval-required",
+        "activeTurnId": "turn-7",
+        "lastError": null,
+        "updatedAt": "2026-08-31T15:03:40.000Z"
+      },
+      "latestUserMessageAt": "2026-08-31T15:03:00.000Z",
+      "hasPendingApprovals": true,
+      "hasPendingUserInput": false,
+      "hasActionableProposedPlan": false,
+      "backgroundLiveness": "working",
+      "planProgress": { "step": "edit tools.py", "completedSteps": 2, "totalSteps": 4 },
+      "futureShellKey": 1
+    },
+    {
+      "id": "thr-docs",
+      "projectId": "proj-t3",
+      "title": "Document pairing flow",
+      "modelSelection": { "instanceId": "claude", "model": "opus-4.1" },
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "branch": "main",
+      "worktreePath": null,
+      "latestTurn": {
+        "turnId": "turn-2",
+        "state": "completed",
+        "requestedAt": "2026-08-30T10:00:00.000Z",
+        "startedAt": "2026-08-30T10:00:01.000Z",
+        "completedAt": "2026-08-30T10:04:00.000Z",
+        "assistantMessageId": "msg-a2"
+      },
+      "createdAt": "2026-08-30T09:00:00.000Z",
+      "updatedAt": "2026-08-30T10:04:00.000Z",
+      "archivedAt": null,
+      "settledOverride": "settled",
+      "settledAt": "2026-08-30T10:04:00.000Z",
+      "session": null,
+      "latestUserMessageAt": "2026-08-30T10:00:00.000Z",
+      "hasPendingApprovals": false,
+      "hasPendingUserInput": true,
+      "hasActionableProposedPlan": true
+    }
+  ]
+}

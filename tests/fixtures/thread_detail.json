@@ -1,0 +1,96 @@
+{
+  "snapshotSequence": 88,
+  "unexpectedField": "thread-wire-extra",
+  "page": {
+    "beforeCursor": "turn-1",
+    "hasMore": true,
+    "snapshotSequence": 88,
+    "threadSequence": 12
+  },
+  "thread": {
+    "id": "thr-fix-flaky",
+    "projectId": "proj-hermes",
+    "title": "Fix the flaky read-tools test",
+    "modelSelection": { "instanceId": "codex", "model": "gpt-5.4" },
+    "runtimeMode": "approval-required",
+    "interactionMode": "default",
+    "branch": "feature/talaria-v1",
+    "worktreePath": "/Users/eltmon/Projects/hermes-plugin-talaria/.t3/worktrees/thr-fix-flaky",
+    "latestTurn": {
+      "turnId": "turn-3",
+      "state": "completed",
+      "requestedAt": "2026-08-31T15:10:00.000Z",
+      "startedAt": "2026-08-31T15:10:01.000Z",
+      "completedAt": "2026-08-31T15:12:00.000Z",
+      "assistantMessageId": "msg-a3"
+    },
+    "createdAt": "2026-08-31T14:00:00.000Z",
+    "updatedAt": "2026-08-31T15:12:00.000Z",
+    "archivedAt": null,
+    "settledOverride": null,
+    "settledAt": null,
+    "deletedAt": null,
+    "futureThreadKey": { "ok": true },
+    "messages": [
+      {
+        "id": "msg-u1",
+        "role": "user",
+        "text": "List the T3 environments this hermes can reach.",
+        "turnId": "turn-1",
+        "streaming": false,
+        "createdAt": "2026-08-31T14:01:00.000Z",
+        "updatedAt": "2026-08-31T14:01:00.000Z",
+        "wireOnly": "drop-from-condensed"
+      },
+      {
+        "id": "msg-a1",
+        "role": "assistant",
+        "text": "I see one live environment named laptop (Eltmon's MacBook).",
+        "turnId": "turn-1",
+        "streaming": false,
+        "createdAt": "2026-08-31T14:01:20.000Z",
+        "updatedAt": "2026-08-31T14:01:20.000Z"
+      },
+      {
+        "id": "msg-u2",
+        "role": "user",
+        "text": "Show me the threads and any pending approvals.",
+        "turnId": "turn-2",
+        "streaming": false,
+        "createdAt": "2026-08-31T14:30:00.000Z",
+        "updatedAt": "2026-08-31T14:30:00.000Z"
+      },
+      {
+        "id": "msg-a2",
+        "role": "assistant",
+        "text": "thr-fix-flaky is running and hasPendingApprovals=true.",
+        "turnId": "turn-2",
+        "streaming": false,
+        "createdAt": "2026-08-31T14:30:15.000Z",
+        "updatedAt": "2026-08-31T14:30:15.000Z"
+      },
+      {
+        "id": "msg-u3",
+        "role": "user",
+        "text": "Read that thread and extract the agent output.",
+        "turnId": "turn-3",
+        "streaming": false,
+        "createdAt": "2026-08-31T15:10:00.000Z",
+        "updatedAt": "2026-08-31T15:10:00.000Z"
+      },
+      {
+        "id": "msg-a3",
+        "role": "assistant",
+        "text": "Patched tools.py handlers and added golden tests.",
+        "turnId": "turn-3",
+        "streaming": false,
+        "createdAt": "2026-08-31T15:12:00.000Z",
+        "updatedAt": "2026-08-31T15:12:00.000Z"
+      }
+    ],
+    "proposedPlans": [],
+    "activities": [],
+    "checkpoints": [],
+    "session": null
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "environmentId": "env-laptop-1",
+  "label": "Eltmon's MacBook",
+  "platform": { "os": "darwin", "arch": "arm64" },
+  "serverVersion": "0.0.33",
+  "capabilities": {
+    "repositoryIdentity": true,
+    "threadSettlement": true,
+    "threadSnooze": true
+  },
+  "sessionMethods": ["bearer-access-token"],
+  "unexpectedField": "keep-me-on-wire-not-in-condensed"
+}

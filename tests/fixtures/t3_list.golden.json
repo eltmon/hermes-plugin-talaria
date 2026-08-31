@@ -1,0 +1,35 @@
+{
+  "environment": "laptop",
+  "projects": [
+    {
+      "id": "proj-hermes",
+      "title": "hermes-plugin-talaria",
+      "path": "/Users/eltmon/Projects/hermes-plugin-talaria"
+    },
+    {
+      "id": "proj-t3",
+      "title": "t3code",
+      "path": "/Users/eltmon/Projects/t3code"
+    }
+  ],
+  "threads": [
+    {
+      "id": "thr-fix-flaky",
+      "projectId": "proj-hermes",
+      "title": "Fix the flaky read-tools test",
+      "worktreePath": "/Users/eltmon/Projects/hermes-plugin-talaria/.t3/worktrees/thr-fix-flaky",
+      "latestTurn": { "turnId": "turn-7", "state": "running" },
+      "hasPendingApprovals": true,
+      "hasPendingUserInput": false
+    },
+    {
+      "id": "thr-docs",
+      "projectId": "proj-t3",
+      "title": "Document pairing flow",
+      "worktreePath": null,
+      "latestTurn": { "turnId": "turn-2", "state": "completed" },
+      "hasPendingApprovals": false,
+      "hasPendingUserInput": true
+    }
+  ]
+}
