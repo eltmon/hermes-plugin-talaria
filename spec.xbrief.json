@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T12:40:00Z",
+    "updated": "2026-08-31T12:55:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -55,7 +55,7 @@
       {
         "id": "wi-2-config",
         "title": "Config + secret resolution module (environments map, scoped secret reads, error types)",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -73,8 +73,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-2: resolve_environments(ctx) with arg/default/sole/ambiguous order, T3CODE_TOKEN_<NAME> mangling, secret_scope-based get/set with UnscopedSecretError fallback, JSON-serializable error types with actionable hint fields." },
         "items": [
-          { "id": "wi-2-config.ac1", "title": "Environment resolution covers explicit arg, default_environment, sole entry, and ambiguous error listing options", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-2-config.ac2", "title": "Secret name mangling: my-laptop -> T3CODE_TOKEN_MY_LAPTOP", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-2-config.ac1", "title": "Environment resolution covers explicit arg, default_environment, sole entry, and ambiguous error listing options", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-2-config.ac2", "title": "Secret name mangling: my-laptop -> T3CODE_TOKEN_MY_LAPTOP", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {
