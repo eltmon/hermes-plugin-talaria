@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T13:10:00Z",
+    "updated": "2026-08-31T13:30:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -106,7 +106,7 @@
       {
         "id": "wi-4-login",
         "title": "Mode A: `hermes t3code login <pairing-url>` CLI (parse both URL shapes, exchange, store secret)",
-        "status": "pending",
+        "status": "completed",
         "priority": "high",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -124,8 +124,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-4: parse token from URL hash (#token=...) and hosted variant (?host=... origin), fetch descriptor, exchange_pairing, store bearer via config module secrets, register login/logout CLI commands." },
         "items": [
-          { "id": "wi-4-login.ac1", "title": "Local (#token) and hosted (?host= + #token) pairing URLs both authenticate in tests", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-4-login.ac2", "title": "Test asserts the bearer never appears in ctx config values, only in the secret store", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-4-login.ac1", "title": "Local (#token) and hosted (?host= + #token) pairing URLs both authenticate in tests", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-4-login.ac2", "title": "Test asserts the bearer never appears in ctx config values, only in the secret store", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {
