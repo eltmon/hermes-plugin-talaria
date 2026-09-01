@@ -365,3 +365,54 @@ T3_SEARCH_SCHEMA = _schema(
     },
     required=["project_id", "query"],
 )
+
+_WATCH_KIND = {
+    "type": "string",
+    "description": (
+        "thread | shell. thread watches orchestration.subscribeThread for one "
+        "thread_id; shell watches orchestration.subscribeShell for the "
+        "environment."
+    ),
+}
+
+T3_WATCH_SCHEMA = _schema(
+    "t3_watch",
+    (
+        "Start a background reader on a T3 Code subscribeThread (kind=thread) "
+        "or subscribeShell (kind=shell) stream. Salient events (turn settled, "
+        "approval requested, user-input requested) are injected into the "
+        "Hermes conversation via inject_message. Requires "
+        "plugins.entries.t3code.settings.allow_gateway_injection: true; "
+        "without that grant this tool returns instructions and injects "
+        "nothing. Gateway inject_message also needs the host grant "
+        "plugins.entries.t3code.allow_gateway_injection: true. Resume cursor "
+        "is afterSequence stored in plugin state. Stop with t3_unwatch."
+    ),
+    {
+        "environment": ENVIRONMENT,
+        "kind": _WATCH_KIND,
+        "thread_id": {
+            "type": "string",
+            "description": "Thread id to subscribe to. Required when kind=thread.",
+        },
+    },
+    required=["kind"],
+)
+
+T3_UNWATCH_SCHEMA = _schema(
+    "t3_unwatch",
+    (
+        "Stop a t3_watch background reader for kind=thread or kind=shell and "
+        "clear that watch from plugin state. Does not require the injection "
+        "grant. Pass the same environment / thread_id used with t3_watch."
+    ),
+    {
+        "environment": ENVIRONMENT,
+        "kind": _WATCH_KIND,
+        "thread_id": {
+            "type": "string",
+            "description": "Thread id of the watch to stop. Required when kind=thread.",
+        },
+    },
+    required=["kind"],
+)

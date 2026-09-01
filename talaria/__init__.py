@@ -14,7 +14,9 @@ from .schemas import (
     T3_RESPOND_SCHEMA,
     T3_SEARCH_SCHEMA,
     T3_THREAD_SCHEMA,
+    T3_UNWATCH_SCHEMA,
     T3_WAIT_SCHEMA,
+    T3_WATCH_SCHEMA,
     T3_WRITE_FILE_SCHEMA,
 )
 from .tools import (
@@ -29,7 +31,9 @@ from .tools import (
     handle_t3_respond,
     handle_t3_search,
     handle_t3_thread,
+    handle_t3_unwatch,
     handle_t3_wait,
+    handle_t3_watch,
     handle_t3_write_file,
 )
 
@@ -46,6 +50,8 @@ _TOOLS = (
     ("t3_read_file", T3_READ_FILE_SCHEMA, handle_t3_read_file),
     ("t3_write_file", T3_WRITE_FILE_SCHEMA, handle_t3_write_file),
     ("t3_search", T3_SEARCH_SCHEMA, handle_t3_search),
+    ("t3_watch", T3_WATCH_SCHEMA, handle_t3_watch),
+    ("t3_unwatch", T3_UNWATCH_SCHEMA, handle_t3_unwatch),
 )
 
 

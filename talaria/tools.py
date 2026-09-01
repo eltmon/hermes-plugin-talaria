@@ -40,6 +40,15 @@ from .errors import (
 )
 from .t3_env import T3EnvClient
 from .t3_ws import RpcExitFailure, T3WsClient
+from .watch import (
+    grant_denied_json,
+    injection_granted,
+    parse_kind,
+    parse_thread_id,
+    reset_live_watches,
+    start_watch,
+    stop_watch,
+)
 
 OUTPUT_CHAR_LIMIT = 32_768
 DEFAULT_TURN_LIMIT = 5
@@ -70,6 +79,8 @@ _ws_client_factory = None
 def bind_ctx(ctx) -> None:
     global _bound_ctx
     _bound_ctx = ctx
+    if ctx is None:
+        reset_live_watches()
 
 
 def set_client_factory(factory) -> None:
@@ -1109,6 +1120,63 @@ def handle_t3_search(args: dict, **kwargs) -> str:
         )
     except RpcExitFailure as exc:
         return _rpc_failure_json(exc)
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
+
+
+def _spawn_fn(ctx, kwargs):
+    spawn = kwargs.get("spawn")
+    if spawn is not None:
+        return spawn
+    spawn_task = getattr(ctx, "spawn_task", None)
+    if callable(spawn_task):
+        return spawn_task
+    return None
+
+
+def handle_t3_watch(args: dict, **kwargs) -> str:
+    try:
+        ctx = _ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_watch")
+        if not injection_granted(ctx):
+            return grant_denied_json()
+        args = args or {}
+        kind = parse_kind(args)
+        thread_id = parse_thread_id(args, kind)
+        ref = _resolved_env(ctx, args.get("environment"))
+        return start_watch(
+            ctx,
+            kind=kind,
+            environment=ref.name,
+            thread_id=thread_id,
+            spawn=_spawn_fn(ctx, kwargs),
+            client_factory=lambda: _ws_client_for(ctx, ref),
+            kwargs=kwargs,
+        )
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
+
+
+def handle_t3_unwatch(args: dict, **kwargs) -> str:
+    try:
+        ctx = _ctx(kwargs)
+        if ctx is None:
+            return _stub("t3_unwatch")
+        args = args or {}
+        kind = parse_kind(args)
+        thread_id = parse_thread_id(args, kind)
+        ref = _resolved_env(ctx, args.get("environment"))
+        return stop_watch(
+            ctx,
+            kind=kind,
+            environment=ref.name,
+            thread_id=thread_id,
+        )
     except TalariaError as exc:
         return exc.to_json()
     except Exception as exc:

@@ -22,6 +22,8 @@ provides_tools:
   - t3_read_file
   - t3_write_file
   - t3_search
+  - t3_watch
+  - t3_unwatch
 python_dependencies:
   - cryptography
 config_schema:
@@ -55,3 +57,13 @@ config_schema:
       Default environment name or environmentId used when a tool omits the
       environment argument. Null means no default (error unless exactly one
       environment is available).
+  allow_gateway_injection:
+    type: bool
+    required: false
+    default: false
+    description: >-
+      When true, t3_watch may inject salient T3 Code events into the Hermes
+      conversation (ctx.get_config reads this settings key). Gateway
+      inject_message also needs the host grant
+      plugins.entries.t3code.allow_gateway_injection: true (boolean true).
+      Default false; t3_watch fail-softs with grant instructions.

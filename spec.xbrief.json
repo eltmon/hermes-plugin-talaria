@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-09-01T00:10:00Z",
+    "updated": "2026-09-01T00:30:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -308,7 +308,7 @@
       {
         "id": "wi-12-event-push",
         "title": "M2: live event push (t3_watch/t3_unwatch, subscribe streams, inject_message)",
-        "status": "pending",
+        "status": "completed",
         "priority": "medium",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -326,8 +326,8 @@
         },
         "narrative": { "Action": "Implement PRD WI-12: lazy background reader via ctx.spawn_task started from async t3_watch handler; subscribeThread/subscribeShell folding with afterSequence cursor in ctx.state; salient events pushed via ctx.inject_message gated on allow_gateway_injection; t3_unwatch stops the reader (reverse state)." },
         "items": [
-          { "id": "wi-12-event-push.ac1", "title": "Sequence dedupe and snapshot replacement covered by reducer unit tests", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-12-event-push.ac2", "title": "Without allow_gateway_injection, watch returns grant instructions and injects nothing", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-12-event-push.ac1", "title": "Sequence dedupe and snapshot replacement covered by reducer unit tests", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-12-event-push.ac2", "title": "Without allow_gateway_injection, watch returns grant instructions and injects nothing", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {
