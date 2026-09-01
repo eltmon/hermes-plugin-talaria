@@ -10,7 +10,7 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [{ name = "Edward Becker" }]
-dependencies = ["httpx", "cryptography"]
+dependencies = ["httpx", "cryptography", "websockets"]
 
 [project.optional-dependencies]
 dev = ["pytest"]

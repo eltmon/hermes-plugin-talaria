@@ -261,3 +261,38 @@ identically through the tunnel.
 `t3_wait` polls `GET /api/orchestration/shell` and reads that thread's `latestTurn` plus `hasPendingApprovals` / `hasPendingUserInput`. It does not poll thread detail.
 
 Why: CP-1 asked to verify on a live server that `GET /api/orchestration/threads/:id` exposes settled status. No live server confirmation was available, so the PRD fallback is the live path. Those shell fields are confirmed on `OrchestrationThreadShell` / `OrchestrationLatestTurn` (`state`: `running` | `interrupted` | `completed` | `error`). A thread-detail variant stays `TODO(CP-1)` in `talaria/tools.py` until a live server shows settled status there.
+
+## CP-3 — Effect RPC WebSocket frame schema (captured 2026-08-31)
+
+Captured against a live T3 Code server (`serverVersion` **0.0.37**, loopback `http://127.0.0.1:3773`) after `POST /api/auth/websocket-ticket` and `ws://127.0.0.1:3773/ws?wsTicket=…`. Serialization is Effect `RpcSerialization.layerJson` (one JSON object per WebSocket text message; **not** JSON-RPC 2.0, **not** NDJSON). Tested t3code range for this encoder: **0.0.37**.
+
+Handshake: HTTP `POST /api/auth/websocket-ticket` with the environment access token → `{ ticket, expiresAt }` → connect `ws(s)://{host}/ws?wsTicket={ticket}`.
+
+Client → server envelopes (live):
+
+```json
+{"_tag":"Ping"}
+{"_tag":"Request","id":"probe-1","tag":"server.probe","payload":{},"headers":[]}
+{"_tag":"Request","id":"shell-1","tag":"orchestration.subscribeShell","payload":{"afterSequence":0,"requestCompletionMarker":true},"headers":[]}
+{"_tag":"Ack","requestId":"shell-1"}
+{"_tag":"Interrupt","requestId":"shell-1"}
+{"_tag":"Request","id":"ls-2","tag":"projects.listEntries","payload":{"cwd":"<abs path>"},"headers":[]}
+```
+
+`Request.headers` is an array of `[name, value]` pairs (empty `[]` is valid). `Request.id` is a string. RPC method names are the `tag` strings from `WsRpcGroup` (`server.probe`, `projects.listEntries`, `orchestration.subscribeShell`, …).
+
+Server → client envelopes (live):
+
+```json
+{"_tag":"Pong"}
+{"_tag":"Exit","requestId":"probe-1","exit":{"_tag":"Success","value":{}}}
+{"_tag":"Chunk","requestId":"shell-1","values":[{"kind":"snapshot","snapshot":{}}]}
+{"_tag":"Exit","requestId":"shell-1","exit":{"_tag":"Failure","cause":[{"_tag":"Interrupt","fiberId":191893}]}}
+{"_tag":"Exit","requestId":"ls-2","exit":{"_tag":"Success","value":{"entries":[{"path":"__init__.py","kind":"file"}],"truncated":false}}}
+```
+
+A missing required payload key (`projects.listEntries` without `cwd`) returned `Exit` / `Failure` / `cause: [{_tag:"Die","defect":"Missing key\\n  at [\"cwd\"]"}]`. Unary RPCs complete with a single `Exit`. Streaming RPCs emit one or more `Chunk` frames (`values` is a non-empty array of stream items) and finish with `Exit`. Interrupting a stream yields `Exit`/`Failure`/`Interrupt` with a numeric `fiberId`.
+
+Keepalive: client `Ping` → server `Pong`. Also send WebSocket-level pings every 30s (hermes `ws_transport.py` pattern). After each incoming `Chunk`, the client sends `{"_tag":"Ack","requestId"}` before waiting for the next Chunk or Exit (Effect stream backpressure; the server latches until Ack). Encoded `Interrupt` is `{_tag, requestId}` only — no `interruptors` on the wire. Server `{"_tag":"Defect","defect":…}` and `{"_tag":"ClientProtocolError","error":…}` are terminal for in-flight waiters. On ticket rejection, stop reconnecting and mint a fresh ticket. Reconnect backoff exponential, cap 30s.
+
+Sanitized transcripts (no live shell dump) live in `tests/fixtures/frames/`.

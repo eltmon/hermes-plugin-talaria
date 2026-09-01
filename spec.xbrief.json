@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T15:00:00Z",
+    "updated": "2026-08-31T23:50:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -257,7 +257,7 @@
       {
         "id": "wi-10-ws-client",
         "title": "M2: Effect RPC WebSocket client (CP-3 frame capture first)",
-        "status": "pending",
+        "status": "completed",
         "priority": "medium",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -276,9 +276,9 @@
         },
         "narrative": { "Action": "Implement PRD WI-10. FIRST resolve checkpoint CP-3: capture literal Effect RPC frames from a live t3code server and document the schema in docs/design.md. Then build the async websockets client: ws-ticket handshake, request correlation, streaming responses, expo backoff capped 30s, ping 30s, auth-failure latching with fresh-ticket retry." },
         "items": [
-          { "id": "wi-10-ws-client.ac1", "title": "CP-3 resolved: captured frame schema documented in docs/design.md before encoder written", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-10-ws-client.ac2", "title": "Fixture-driven fake server round-trips a request/response and a streaming subscription", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-10-ws-client.ac3", "title": "Reconnect/backoff and ticket-rejection latching tested with mocked clock, no real sleeps", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-10-ws-client.ac1", "title": "CP-3 resolved: captured frame schema documented in docs/design.md before encoder written", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-10-ws-client.ac2", "title": "Fixture-driven fake server round-trips a request/response and a streaming subscription", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-10-ws-client.ac3", "title": "Reconnect/backoff and ticket-rejection latching tested with mocked clock, no real sleeps", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {

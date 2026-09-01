@@ -1,0 +1,106 @@
+{
+  "serverVersion": "0.0.37",
+  "note": "Sanitized CP-3 capture. Envelopes match a live t3code 0.0.37 socket; payloads are fixtures, not a dump of the operator's shell.",
+  "frames": [
+    {"dir": "out", "raw": {"_tag": "Ping"}},
+    {"dir": "in", "raw": {"_tag": "Pong"}},
+    {
+      "dir": "out",
+      "raw": {
+        "_tag": "Request",
+        "id": "probe-1",
+        "tag": "server.probe",
+        "payload": {},
+        "headers": []
+      }
+    },
+    {
+      "dir": "in",
+      "raw": {
+        "_tag": "Exit",
+        "requestId": "probe-1",
+        "exit": {"_tag": "Success", "value": {}}
+      }
+    },
+    {
+      "dir": "out",
+      "raw": {
+        "_tag": "Request",
+        "id": "shell-1",
+        "tag": "orchestration.subscribeShell",
+        "payload": {"afterSequence": 0, "requestCompletionMarker": true},
+        "headers": []
+      }
+    },
+    {
+      "dir": "in",
+      "raw": {
+        "_tag": "Chunk",
+        "requestId": "shell-1",
+        "values": [
+          {
+            "kind": "snapshot",
+            "snapshot": {
+              "snapshotSequence": 1,
+              "projects": [
+                {
+                  "id": "proj-1",
+                  "title": "demo",
+                  "workspaceRoot": "/tmp/demo"
+                }
+              ],
+              "threads": [],
+              "updatedAt": "2026-08-31T00:00:00.000Z"
+            }
+          }
+        ]
+      }
+    },
+    {"dir": "out", "raw": {"_tag": "Ack", "requestId": "shell-1"}},
+    {
+      "dir": "in",
+      "raw": {
+        "_tag": "Chunk",
+        "requestId": "shell-1",
+        "values": [{"kind": "synchronized"}]
+      }
+    },
+    {"dir": "out", "raw": {"_tag": "Ack", "requestId": "shell-1"}},
+    {"dir": "out", "raw": {"_tag": "Interrupt", "requestId": "shell-1"}},
+    {
+      "dir": "in",
+      "raw": {
+        "_tag": "Exit",
+        "requestId": "shell-1",
+        "exit": {
+          "_tag": "Failure",
+          "cause": [{"_tag": "Interrupt", "fiberId": 1}]
+        }
+      }
+    },
+    {
+      "dir": "out",
+      "raw": {
+        "_tag": "Request",
+        "id": "ls-1",
+        "tag": "projects.listEntries",
+        "payload": {"cwd": "/tmp/demo"},
+        "headers": []
+      }
+    },
+    {
+      "dir": "in",
+      "raw": {
+        "_tag": "Exit",
+        "requestId": "ls-1",
+        "exit": {
+          "_tag": "Success",
+          "value": {
+            "entries": [{"path": "README.md", "kind": "file"}],
+            "truncated": false
+          }
+        }
+      }
+    }
+  ]
+}
