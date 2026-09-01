@@ -4,7 +4,7 @@
   "author": "Edward Becker",
   "tags": ["t3code", "coding", "remote", "tools"],
   "repo": "eltmon/hermes-plugin-talaria",
-  "ref": "REPLACE_WITH_HEAD_SHA",
+  "ref": "ff00eb6c232dd50a39fc80c45c9dcba8632ed554",
   "homepage": "https://github.com/eltmon/hermes-plugin-talaria",
   "capabilities": ["tools", "commands"],
   "api_version": 1,
