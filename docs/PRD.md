@@ -1,6 +1,6 @@
 # PRD — Talaria (`hermes-plugin-t3code`, plugin id `t3code`)
 
-Status: approved for implementation · 2026-08-31
+Status: M1+M2 implemented · 2026-09-01
 Companion: [design.md](design.md) (investigation detail), [`../spec.xbrief.json`](../spec.xbrief.json) (task plan).
 
 This PRD is also the implementation brief. It is written so an implementation

@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-09-01T00:30:00Z",
+    "updated": "2026-09-01T00:45:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -333,7 +333,7 @@
       {
         "id": "wi-13-docs",
         "title": "Docs + distribution: README walkthroughs, CONTRIBUTING, plugin-index prep (CP-4)",
-        "status": "pending",
+        "status": "completed",
         "priority": "medium",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -351,8 +351,8 @@
         },
         "narrative": { "Action": "Execute PRD WI-13: README install/enable/login/connect walkthroughs, config + secret reference, allow_gateway_injection note, tested t3code version; CONTRIBUTING.md dev setup; resolve checkpoint CP-4 (re-verify plugin index location, which 404'd on 2026-08-31) and prepare the index entry with an immutable ref." },
         "items": [
-          { "id": "wi-13-docs.ac1", "title": "Every config key and secret name present in code is documented in README", "status": "pending", "metadata": { "kind": "acceptance_criterion" } },
-          { "id": "wi-13-docs.ac2", "title": "CP-4 resolved: canonical plugin-index location confirmed and submission entry drafted with immutable ref", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-13-docs.ac1", "title": "Every config key and secret name present in code is documented in README", "status": "completed", "metadata": { "kind": "acceptance_criterion" } },
+          { "id": "wi-13-docs.ac2", "title": "CP-4 resolved: canonical plugin-index location confirmed and submission entry drafted with immutable ref", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       }
     ],

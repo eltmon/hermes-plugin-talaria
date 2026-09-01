@@ -296,3 +296,24 @@ A missing required payload key (`projects.listEntries` without `cwd`) returned `
 Keepalive: client `Ping` → server `Pong`. Also send WebSocket-level pings every 30s (hermes `ws_transport.py` pattern). After each incoming `Chunk`, the client sends `{"_tag":"Ack","requestId"}` before waiting for the next Chunk or Exit (Effect stream backpressure; the server latches until Ack). Encoded `Interrupt` is `{_tag, requestId}` only — no `interruptors` on the wire. Server `{"_tag":"Defect","defect":…}` and `{"_tag":"ClientProtocolError","error":…}` are terminal for in-flight waiters. On ticket rejection, stop reconnecting and mint a fresh ticket. Reconnect backoff exponential, cap 30s.
 
 Sanitized transcripts (no live shell dump) live in `tests/fixtures/frames/`.
+
+## CP-4 — plugin-index location (re-verified 2026-09-01)
+
+The 2026-08-31 404 is **not** closed. Hermes `hermes_cli/plugin_index.py`
+`DEFAULT_INDEX_URL` is still
+`https://raw.githubusercontent.com/NousResearch/hermes-plugin-index/main/index.json`
+([NousResearch/hermes-plugin-index](https://github.com/NousResearch/hermes-plugin-index));
+that URL and the GitHub repo still HTTP 404.
+
+The community index that returns HTTP 200 as of 2026-09-01 is
+[Revell-ai/hermes-plugin-index](https://github.com/Revell-ai/hermes-plugin-index)
+(`https://raw.githubusercontent.com/Revell-ai/hermes-plugin-index/main/index.json`).
+Hermes clients only use it if `plugins.index_url` is pointed there; the code
+default stays the Nous 404. Fallback when the remote is unreachable:
+`hermes_cli/data/plugin_index.json` (bundled seed / entry schema) and promote
+via Nous Discord `#plugins-skills-and-skins`.
+
+Draft entry: [`docs/plugin-index-entry.json`](plugin-index-entry.json)
+(`name: t3code`, `repo: eltmon/hermes-plugin-talaria`). `ref` is the placeholder
+`REPLACE_WITH_HEAD_SHA`. Do not submit until the operator chooses the live
+target. See [`docs/plugin-index-entry.md`](plugin-index-entry.md).
