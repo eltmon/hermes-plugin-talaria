@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import time
 from collections.abc import Callable, Mapping
@@ -37,6 +39,7 @@ from .errors import (
     json_error,
 )
 from .t3_env import T3EnvClient
+from .t3_ws import RpcExitFailure, T3WsClient
 
 OUTPUT_CHAR_LIMIT = 32_768
 DEFAULT_TURN_LIMIT = 5
@@ -45,6 +48,15 @@ MIN_WAIT_INTERVAL = 2
 DEFAULT_WAIT_TIMEOUT = 300
 WAIT_EXCERPT_LIMIT = 200
 _SETTLED_STATES = frozenset({"completed", "interrupted", "error"})
+READ_BYTE_LIMIT = 256 * 1024
+SEARCH_LIMIT_DEFAULT = 50
+SEARCH_LIMIT_MAX = 500
+SEARCH_QUERY_MAX = 256
+FILE_PATH_MAX = 512
+LS_TAG = "projects.listEntries"
+READ_TAG = "projects.readFile"
+WRITE_TAG = "projects.writeFile"
+SEARCH_TAG = "projects.searchContents"
 
 _HINT = "This tool is a scaffold stub; a later work item implements it."
 
@@ -52,6 +64,7 @@ _HINT = "This tool is a scaffold stub; a later work item implements it."
 # register() should call bind_ctx(ctx). Tests may pass ctx= instead.
 _bound_ctx = None
 _client_factory = None
+_ws_client_factory = None
 
 
 def bind_ctx(ctx) -> None:
@@ -63,6 +76,12 @@ def set_client_factory(factory) -> None:
     """Test seam: replace T3EnvClient construction (MockTransport). ``None`` restores."""
     global _client_factory
     _client_factory = factory
+
+
+def set_ws_client_factory(factory) -> None:
+    """Test seam: replace T3WsClient construction. ``None`` restores."""
+    global _ws_client_factory
+    _ws_client_factory = factory
 
 
 def make_env_client(
@@ -664,6 +683,432 @@ def handle_t3_wait(args: dict, **kwargs) -> str:
             if remaining <= 0:
                 return _wait_payload(ref.name, thread_id, "timeout", last_thread)
             sleep(min(interval, remaining))
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
+
+
+def _run_async(coro):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import threading
+
+    box: list[Any] = []
+    err: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            box.append(asyncio.run(coro))
+        except BaseException as exc:
+            err.append(exc)
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    thread.join()
+    if err:
+        raise err[0]
+    return box[0]
+
+
+def _ws_client_for(ctx, ref: EnvironmentRef):
+    factory = _ws_client_factory
+    if factory is not None:
+        return factory(ref)
+    env = _client_for(ctx, ref)
+
+    def ticket_fn() -> str:
+        raw = env.ws_ticket()
+        if isinstance(raw, dict):
+            ticket = raw.get("ticket")
+            if isinstance(ticket, str) and ticket.strip():
+                return ticket.strip()
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        raise T3ApiError(200, "websocket-ticket response missing ticket")
+
+    return T3WsClient(ref.base_url, ticket_fn)
+
+
+async def _ws_call(client, tag: str, payload: Mapping[str, Any]) -> Any:
+    result = client.request(tag, payload)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
+
+
+async def _ws_close(client) -> None:
+    close = getattr(client, "close", None)
+    if close is None:
+        return
+    try:
+        closing = close()
+        if inspect.isawaitable(closing):
+            await closing
+    except Exception:
+        return
+
+
+def _ws_request(ctx, ref: EnvironmentRef, tag: str, payload: Mapping[str, Any]) -> Any:
+    async def body():
+        client = _ws_client_for(ctx, ref)
+        try:
+            return await _ws_call(client, tag, payload)
+        finally:
+            await _ws_close(client)
+
+    return _run_async(body())
+
+
+def _walk_cause(cause: Any):
+    if isinstance(cause, dict):
+        yield cause
+        for key in ("error", "cause", "defect", "value"):
+            yield from _walk_cause(cause.get(key))
+        return
+    if isinstance(cause, list):
+        for item in cause:
+            yield from _walk_cause(item)
+
+
+def _authz_from_cause(cause: Any) -> dict | None:
+    for node in _walk_cause(cause):
+        if node.get("_tag") == "EnvironmentAuthorizationError":
+            return node
+        error = node.get("error")
+        if isinstance(error, dict) and error.get("_tag") == "EnvironmentAuthorizationError":
+            return error
+    return None
+
+
+def _tagged_from_cause(cause: Any) -> dict | None:
+    skip = frozenset({"Fail", "Die", "Interrupt", "Empty", "Sequential", "Parallel"})
+    for node in _walk_cause(cause):
+        tag = node.get("_tag")
+        if isinstance(tag, str) and tag and tag not in skip:
+            return node
+    return None
+
+
+def _rpc_failure_json(exc: RpcExitFailure) -> str:
+    authz = _authz_from_cause(exc.cause)
+    if authz is not None:
+        scope = authz.get("requiredScope")
+        if not isinstance(scope, str) or not scope.strip():
+            scope = authz.get("required_scope")
+        scope = scope.strip() if isinstance(scope, str) else None
+        message = authz.get("message")
+        if not isinstance(message, str) or not message.strip():
+            if scope:
+                message = (
+                    "The authenticated token is missing required scope: "
+                    f"{scope}."
+                )
+            else:
+                message = "environment authorization error"
+        if scope and scope not in message:
+            message = f"{message} (missing scope: {scope})"
+        payload = {
+            "error": message,
+            "hint": (
+                f"this RPC needs the {scope} scope; re-pair with a token "
+                "that includes it"
+                if scope
+                else "the environment token is missing a required scope"
+            ),
+        }
+        if scope:
+            payload["requiredScope"] = scope
+        return json.dumps(payload)
+    tagged = _tagged_from_cause(exc.cause)
+    if tagged is not None:
+        tag = tagged.get("_tag")
+        message = tagged.get("message")
+        if not isinstance(message, str) or not message.strip():
+            defect = tagged.get("defect")
+            message = defect if isinstance(defect, str) else str(tag)
+        return json_error(str(message), f"T3 RPC failed ({tag})")
+    for node in _walk_cause(exc.cause):
+        if node.get("_tag") == "Die":
+            defect = node.get("defect")
+            text = defect if isinstance(defect, str) else str(node)
+            return json_error(text, "T3 RPC failed")
+    return json_error(str(exc.cause), "T3 RPC failed")
+
+
+def _required_project_id(args: dict) -> str:
+    raw = args.get("project_id")
+    if not isinstance(raw, str) or not raw.strip():
+        raise TalariaError(
+            "project_id is required",
+            "pass project_id from t3_list",
+        )
+    return raw.strip()
+
+
+def _required_path(args: dict) -> str:
+    raw = args.get("path")
+    if not isinstance(raw, str) or not raw.strip():
+        raise TalariaError(
+            "path is required",
+            "pass path as a project-relative path (wire relativePath)",
+        )
+    value = raw.strip()
+    if len(value) > FILE_PATH_MAX:
+        raise TalariaError(
+            "path is too long",
+            f"relativePath max is {FILE_PATH_MAX} characters",
+        )
+    return value
+
+
+def _join_cwd(root: str, relative: Any) -> str:
+    if relative is None:
+        return root
+    if not isinstance(relative, str):
+        raise TalariaError(
+            "path must be a string",
+            "pass path as a project-relative subdirectory",
+        )
+    relative = relative.strip().replace("\\", "/")
+    if not relative or relative in (".", "./"):
+        return root
+    if relative.startswith("/") or relative.startswith("~"):
+        raise TalariaError(
+            "path must be relative",
+            "pass a path under the project's workspaceRoot, not an absolute path",
+        )
+    while relative.startswith("./"):
+        relative = relative[2:]
+    return root.rstrip("/") + "/" + relative.lstrip("/")
+
+
+def _workspace_root(ctx, ref: EnvironmentRef, project_id: str, kwargs) -> str:
+    injected = kwargs.get("cwd")
+    if isinstance(injected, str) and injected.strip():
+        return injected.strip()
+    snapshot = _client_for(ctx, ref).shell()
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+    for raw in snapshot.get("projects") or []:
+        if not isinstance(raw, dict) or raw.get("id") != project_id:
+            continue
+        root = raw.get("workspaceRoot")
+        if isinstance(root, str) and root.strip():
+            return root.strip()
+        raise TalariaError(
+            f"project {project_id!r} has no workspaceRoot",
+            "the shell snapshot project is missing workspaceRoot",
+        )
+    raise TalariaError(
+        f"project_id {project_id!r} not found",
+        "pass project_id from t3_list",
+    )
+
+
+def _file_result(ref: EnvironmentRef, project_id: str, value: Any) -> str:
+    if isinstance(value, dict):
+        payload = dict(value)
+    else:
+        payload = {"result": value}
+    payload["environment"] = ref.name
+    payload["projectId"] = project_id
+    return json.dumps(payload)
+
+
+def _cap_read(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    out = dict(value)
+    contents = out.get("contents")
+    if not isinstance(contents, str):
+        return out
+    encoded = contents.encode("utf-8")
+    if not isinstance(out.get("byteLength"), int) or out["byteLength"] < 0:
+        out["byteLength"] = len(encoded)
+    if len(encoded) <= READ_BYTE_LIMIT:
+        if "truncated" not in out:
+            out["truncated"] = False
+        return out
+    out["contents"] = encoded[:READ_BYTE_LIMIT].decode("utf-8", errors="ignore")
+    out["truncated"] = True
+    return out
+
+
+def _flag(raw: Any, default: bool = False) -> bool:
+    if raw is None:
+        return default
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        value = raw.strip().lower()
+        if value in ("true", "1", "yes"):
+            return True
+        if value in ("false", "0", "no", ""):
+            return False
+        return default
+    if isinstance(raw, (int, float)):
+        return bool(raw)
+    return default
+
+
+def _search_limit(raw: Any) -> int:
+    if raw is None or isinstance(raw, bool):
+        return SEARCH_LIMIT_DEFAULT
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return SEARCH_LIMIT_DEFAULT
+    if value < 1:
+        return SEARCH_LIMIT_DEFAULT
+    if value > SEARCH_LIMIT_MAX:
+        return SEARCH_LIMIT_MAX
+    return value
+
+
+def _search_query(args: dict) -> str:
+    query = args.get("query")
+    if not isinstance(query, str) or query == "":
+        raise TalariaError(
+            "query is required",
+            "pass query as the content search string",
+        )
+    if len(query) > SEARCH_QUERY_MAX:
+        raise TalariaError(
+            "query is too long",
+            f"search query max is {SEARCH_QUERY_MAX} characters",
+        )
+    return query
+
+
+def _file_tool(
+    args: dict | None,
+    kwargs: dict,
+    *,
+    name: str,
+    tag: str,
+    payload_fn,
+    transform=None,
+    prepare=None,
+) -> str:
+    ctx = _ctx(kwargs)
+    if ctx is None:
+        return _stub(name)
+    args = args or {}
+    project_id = _required_project_id(args)
+    if prepare is not None:
+        prepare(args)
+    ref = _resolved_env(ctx, args.get("environment"))
+    cwd = _workspace_root(ctx, ref, project_id, kwargs)
+    payload = payload_fn(cwd, args)
+    value = _ws_request(ctx, ref, tag, payload)
+    if transform is not None:
+        value = transform(value)
+    return _file_result(ref, project_id, value)
+
+
+def handle_t3_ls(args: dict, **kwargs) -> str:
+    try:
+        return _file_tool(
+            args,
+            kwargs,
+            name="t3_ls",
+            tag=LS_TAG,
+            payload_fn=lambda cwd, a: {"cwd": _join_cwd(cwd, a.get("path"))},
+        )
+    except RpcExitFailure as exc:
+        return _rpc_failure_json(exc)
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
+
+
+def handle_t3_read_file(args: dict, **kwargs) -> str:
+    try:
+        def payload_fn(cwd: str, a: dict) -> dict:
+            return {"cwd": cwd, "relativePath": _required_path(a)}
+
+        return _file_tool(
+            args,
+            kwargs,
+            name="t3_read_file",
+            tag=READ_TAG,
+            payload_fn=payload_fn,
+            transform=_cap_read,
+            prepare=_required_path,
+        )
+    except RpcExitFailure as exc:
+        return _rpc_failure_json(exc)
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
+
+
+def handle_t3_write_file(args: dict, **kwargs) -> str:
+    try:
+        def payload_fn(cwd: str, a: dict) -> dict:
+            contents = a.get("contents")
+            if not isinstance(contents, str):
+                raise TalariaError(
+                    "contents is required",
+                    "pass contents as the full file text to write",
+                )
+            return {
+                "cwd": cwd,
+                "relativePath": _required_path(a),
+                "contents": contents,
+            }
+
+        def prepare(a: dict) -> None:
+            _required_path(a)
+            if not isinstance(a.get("contents"), str):
+                raise TalariaError(
+                    "contents is required",
+                    "pass contents as the full file text to write",
+                )
+
+        return _file_tool(
+            args,
+            kwargs,
+            name="t3_write_file",
+            tag=WRITE_TAG,
+            payload_fn=payload_fn,
+            prepare=prepare,
+        )
+    except RpcExitFailure as exc:
+        return _rpc_failure_json(exc)
+    except TalariaError as exc:
+        return exc.to_json()
+    except Exception as exc:
+        return _unexpected(exc)
+
+
+def handle_t3_search(args: dict, **kwargs) -> str:
+    try:
+        def payload_fn(cwd: str, a: dict) -> dict:
+            return {
+                "cwd": cwd,
+                "query": _search_query(a),
+                "limit": _search_limit(a.get("limit")),
+                "caseSensitive": _flag(a.get("case_sensitive"), False),
+                "wholeWord": _flag(a.get("whole_word"), False),
+                "useRegex": _flag(a.get("use_regex"), False),
+            }
+
+        return _file_tool(
+            args,
+            kwargs,
+            name="t3_search",
+            tag=SEARCH_TAG,
+            payload_fn=payload_fn,
+            prepare=_search_query,
+        )
+    except RpcExitFailure as exc:
+        return _rpc_failure_json(exc)
     except TalariaError as exc:
         return exc.to_json()
     except Exception as exc:

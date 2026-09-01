@@ -248,3 +248,120 @@ T3_WAIT_SCHEMA = _schema(
     },
     required=["thread_id"],
 )
+
+_PROJECT_ID = {
+    "type": "string",
+    "description": (
+        "Project id from t3_list. The RPC cwd is that project's workspaceRoot."
+    ),
+}
+
+_RELATIVE_PATH = {
+    "type": "string",
+    "description": (
+        "Path relative to the project's workspaceRoot (wire field relativePath)."
+    ),
+}
+
+T3_LS_SCHEMA = _schema(
+    "t3_ls",
+    (
+        "List files and directories in a T3 Code project (WS RPC "
+        "projects.listEntries). Requires project_id from t3_list. Optional path "
+        "lists that subdirectory under workspaceRoot. Returns entries "
+        "[{path, kind}] where kind is file or directory, plus truncated. "
+        "Needs orchestration:read. Use t3_read_file / t3_write_file / t3_search "
+        "for contents."
+    ),
+    {
+        "environment": ENVIRONMENT,
+        "project_id": _PROJECT_ID,
+        "path": {
+            "type": "string",
+            "description": (
+                "Optional subdirectory relative to workspaceRoot. Omitted or "
+                "empty lists the project root. Joined into the RPC cwd; this "
+                "RPC has no relativePath field."
+            ),
+        },
+    },
+    required=["project_id"],
+)
+
+T3_READ_FILE_SCHEMA = _schema(
+    "t3_read_file",
+    (
+        "Read a text file in a T3 Code project (WS RPC projects.readFile). "
+        "Requires project_id and path (relativePath). Returns relativePath, "
+        "contents, byteLength, and truncated. Contents longer than 256 KiB "
+        "are cut and truncated is true. Needs orchestration:read. Binary "
+        "files fail with path_not_file / binary_file from the environment."
+    ),
+    {
+        "environment": ENVIRONMENT,
+        "project_id": _PROJECT_ID,
+        "path": _RELATIVE_PATH,
+    },
+    required=["project_id", "path"],
+)
+
+T3_WRITE_FILE_SCHEMA = _schema(
+    "t3_write_file",
+    (
+        "Write a text file in a T3 Code project (WS RPC projects.writeFile). "
+        "Requires explicit project_id and path (relativePath) plus contents. "
+        "Creates parent directories as needed on the environment. Returns "
+        "relativePath. Needs orchestration:operate. Do not write without a "
+        "path the user asked for."
+    ),
+    {
+        "environment": ENVIRONMENT,
+        "project_id": _PROJECT_ID,
+        "path": _RELATIVE_PATH,
+        "contents": {
+            "type": "string",
+            "description": "Full file contents to write (wire field contents).",
+        },
+    },
+    required=["project_id", "path", "contents"],
+)
+
+T3_SEARCH_SCHEMA = _schema(
+    "t3_search",
+    (
+        "Search file contents in a T3 Code project (WS RPC "
+        "projects.searchContents). Requires project_id and query (not trimmed; "
+        "whitespace is significant). Optional limit (default 50, max 500), "
+        "case_sensitive, whole_word, use_regex (all default false). Returns "
+        "matches [{path, lineNumber, lineContent, matchRanges}], truncated, "
+        "and optional regexFallbackError. Needs orchestration:read."
+    ),
+    {
+        "environment": ENVIRONMENT,
+        "project_id": _PROJECT_ID,
+        "query": {
+            "type": "string",
+            "description": (
+                "Content search string (wire query). Not trimmed; max 256 "
+                "characters. Empty is invalid."
+            ),
+        },
+        "limit": {
+            "type": "integer",
+            "description": "Max matches to return (default 50, max 500).",
+        },
+        "case_sensitive": {
+            "type": "boolean",
+            "description": "Wire caseSensitive. Default false.",
+        },
+        "whole_word": {
+            "type": "boolean",
+            "description": "Wire wholeWord. Default false.",
+        },
+        "use_regex": {
+            "type": "boolean",
+            "description": "Wire useRegex. Default false.",
+        },
+    },
+    required=["project_id", "query"],
+)

@@ -1,0 +1,11 @@
+{
+  "matches": [
+    {
+      "path": "README.md",
+      "lineNumber": 1,
+      "lineContent": "# Talaria",
+      "matchRanges": [{ "start": 2, "end": 9 }]
+    }
+  ],
+  "truncated": false
+}

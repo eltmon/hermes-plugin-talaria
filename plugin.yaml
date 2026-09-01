@@ -18,6 +18,10 @@ provides_tools:
   - t3_interrupt
   - t3_respond
   - t3_wait
+  - t3_ls
+  - t3_read_file
+  - t3_write_file
+  - t3_search
 python_dependencies:
   - cryptography
 config_schema:

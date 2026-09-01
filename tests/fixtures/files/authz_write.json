@@ -1,0 +1,8 @@
+{
+  "_tag": "Fail",
+  "error": {
+    "_tag": "EnvironmentAuthorizationError",
+    "message": "The authenticated token is missing required scope: orchestration:operate.",
+    "requiredScope": "orchestration:operate"
+  }
+}

@@ -13,7 +13,7 @@
     "author": "agent:claude-fable-5",
     "sequence": 1,
     "created": "2026-08-31T12:00:00Z",
-    "updated": "2026-08-31T23:50:00Z",
+    "updated": "2026-09-01T00:10:00Z",
     "references": [
       { "uri": "docs/PRD.md", "label": "PRD (work items WI-1..WI-13)", "type": "spec" },
       { "uri": "docs/design.md", "label": "Design investigation (rev 2)", "type": "doc" }
@@ -284,7 +284,7 @@
       {
         "id": "wi-11-file-tools",
         "title": "M2: remote file tools (t3_ls, t3_read_file, t3_write_file, t3_search)",
-        "status": "pending",
+        "status": "completed",
         "priority": "medium",
         "created": "2026-08-31T12:00:00Z",
         "metadata": {
@@ -302,7 +302,7 @@
         },
         "narrative": { "Action": "Implement PRD WI-11 over projects.listEntries/readFile/writeFile/searchContents via the WS client: 256 KiB read cap with truncated marker, writes require explicit project_id + path, authorization errors name the missing scope." },
         "items": [
-          { "id": "wi-11-file-tools.ac1", "title": "Each file tool has a fixture-driven test including an authorization-error case naming the missing scope", "status": "pending", "metadata": { "kind": "acceptance_criterion" } }
+          { "id": "wi-11-file-tools.ac1", "title": "Each file tool has a fixture-driven test including an authorization-error case naming the missing scope", "status": "completed", "metadata": { "kind": "acceptance_criterion" } }
         ]
       },
       {

@@ -26,10 +26,11 @@ def _reset_plugin_runtime():
     """Drop bound ctx / MockTransport factory so files cannot leak across tests."""
     yield
     try:
-        from talaria.tools import bind_ctx, set_client_factory
+        from talaria.tools import bind_ctx, set_client_factory, set_ws_client_factory
 
         bind_ctx(None)
         set_client_factory(None)
+        set_ws_client_factory(None)
     except Exception:
         pass
 

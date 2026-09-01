@@ -1,0 +1,8 @@
+{
+  "entries": [
+    { "path": "README.md", "kind": "file" },
+    { "path": "talaria", "kind": "directory" }
+  ],
+  "truncated": false,
+  "unexpectedField": "keep"
+}
