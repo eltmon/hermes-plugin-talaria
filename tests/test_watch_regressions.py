@@ -179,3 +179,46 @@ def test_scoped_watch_refuses_a_host_that_can_only_broadcast():
     assert "scoped" in result.get("error", "")
     assert started == []
     assert ctx.injected == []
+
+
+def test_rehydrated_snapshot_does_not_repeat_a_completed_run_notification():
+    ctx = Context()
+    class RehydratingStream:
+        async def subscribe(self, tag, payload):
+            yield update(1)
+            yield {"kind": "snapshot", "snapshot": {"schemaVersion": 2,
+                "snapshotSequence": 2, "threads": []}}
+            yield {**update(3), "thread": update(1)["thread"]}
+            yield update(4)
+        async def close(self):
+            pass
+    set_ws_client_factory(lambda ref: RehydratingStream())
+    result = json.loads(handle_t3_watch({"kind": "thread", "thread_id": "t1"},
+        ctx=ctx, spawn=lambda coro, **kw: asyncio.run(coro), session_key="a"))
+    assert result["watched"] is True
+    assert len(ctx.injected) == 2
+
+
+def test_watch_uses_published_hermes_context_when_dispatch_omits_routing_key(monkeypatch):
+    import sys
+    from types import ModuleType
+    from contextvars import ContextVar
+    route = ContextVar("test_hermes_route", default="")
+    api = ModuleType("gateway.session_context")
+    api.get_session_env = lambda key, default="": route.get() if key == "HERMES_SESSION_KEY" else default
+    monkeypatch.setitem(sys.modules, "gateway.session_context", api)
+    ctx = Context()
+    class Completed:
+        async def subscribe(self, tag, payload):
+            yield update(1)
+        async def close(self):
+            pass
+    set_ws_client_factory(lambda ref: Completed())
+    token = route.set("private-a")
+    try:
+        result = json.loads(handle_t3_watch({"kind": "shell"}, ctx=ctx,
+            spawn=lambda coro, **kw: asyncio.run(coro), session_id="different-id"))
+    finally:
+        route.reset(token)
+    assert result["watched"] is True
+    assert [key for key, _ in ctx.injected] == ["private-a"]

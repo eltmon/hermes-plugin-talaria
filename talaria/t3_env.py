@@ -59,6 +59,7 @@ STANDARD_SCOPE = (
     "orchestration:read orchestration:operate terminal:operate "
     "review:write relay:read"
 )
+V2_STANDARD_SCOPE = "orchestration:read orchestration:operate filesystem:read filesystem:write"
 
 HeadersFn = Callable[[], Mapping[str, str]]
 DpopSigner = Callable[[str, str], str]
@@ -76,13 +77,13 @@ def _join(base_url: str, path: str) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
 
 
-def _token_exchange_form(subject_token: str) -> dict[str, str]:
+def _token_exchange_form(subject_token: str, protocol_version: int = 1) -> dict[str, str]:
     return {
         "grant_type": GRANT_TYPE,
         "subject_token": subject_token,
         "subject_token_type": SUBJECT_TOKEN_TYPE,
         "requested_token_type": REQUESTED_TOKEN_TYPE,
-        "scope": STANDARD_SCOPE,
+        "scope": V2_STANDARD_SCOPE if protocol_version == 2 else STANDARD_SCOPE,
         "client_label": CLIENT_LABEL,
     }
 
@@ -225,7 +226,7 @@ class T3EnvClient:
             "POST",
             "/oauth/token",
             auth=False,
-            data=_token_exchange_form(subject_token),
+            data=_token_exchange_form(subject_token, self.protocol_version),
         )
 
     def exchange_dpop(self, credential: str, dpop_signer: DpopSigner) -> Any:
@@ -235,7 +236,7 @@ class T3EnvClient:
             "POST",
             "/oauth/token",
             auth=False,
-            data=_token_exchange_form(credential),
+            data=_token_exchange_form(credential, self.protocol_version),
             extra_headers={"dpop": proof},
         )
 

@@ -10,10 +10,10 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [{ name = "Edward Becker" }]
-dependencies = ["httpx", "cryptography", "websockets"]
+dependencies = ["httpx>=0.28.1,<1", "cryptography>=42,<51", "websockets>=14,<18"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest>=8,<10"]
 
 [project.entry-points."hermes_agent.plugins"]
 t3code = "talaria"

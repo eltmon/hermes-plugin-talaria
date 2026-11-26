@@ -91,15 +91,16 @@ def dispatch_commands(command: dict, shell: dict | None = None) -> list[dict]:
     """Translate the stable tool commands into the pinned v2 public contract."""
     kind = command["type"]
     base = {key: command[key] for key in ("commandId", "threadId")}
+    origin = {"createdBy": "agent", "creationSource": "provider"}
     if kind == "thread.create":
-        return [dict(command)]
+        return [{**command, **origin}]
     if kind == "thread.turn.start":
         return [
             {**base, "commandId": str(uuid4()), "type": "thread.runtime-mode.set",
              "runtimeMode": command["runtimeMode"]},
             {**base, "commandId": str(uuid4()), "type": "thread.interaction-mode.set",
              "interactionMode": command["interactionMode"]},
-            {**base, "type": "message.dispatch", "messageId": command["message"]["messageId"],
+            {**base, **origin, "type": "message.dispatch", "messageId": command["message"]["messageId"],
              "text": command["message"]["text"], "attachments": [],
              "dispatchMode": {"type": "start_immediately"},
              **({"modelSelection": command["modelSelection"]} if "modelSelection" in command else {})},

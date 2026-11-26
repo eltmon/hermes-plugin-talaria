@@ -865,7 +865,7 @@ def _exchange_env_access(
         return key.proof(method, url, now=now)
 
     try:
-        payload = T3EnvClient(base_url, client=_http(client)).exchange_dpop(
+        payload = T3EnvClient(base_url, client=_http(client), protocol_version=2).exchange_dpop(
             credential, signer
         )
     except NotAuthenticated:

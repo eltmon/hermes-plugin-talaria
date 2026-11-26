@@ -309,11 +309,18 @@ and `work_laptop`) are rejected before exchange, use or logout. Existing tokens
 are preserved; ambiguous old configurations must be renamed and re-paired
 deliberately rather than guessing which host owns a token.
 
-The automated tests use synthetic peers, not live accounts. Real Hermes plugin
-loading, conversation routing, pairing, T3 Connect, Windows/WSL path behavior and
-restart/reconnect acceptance still need a disposable end-to-end run before
-installation into a real Hermes profile. T3-initiated independent delegation to
-Hermes is a separate feature and is not added by these repairs.
+The fast regression suite uses synthetic network peers. The optional
+[Windows runtime acceptance harness](CONTRIBUTING.md#disposable-runtime-acceptance-windows)
+additionally exercises installed Hermes and stock T3 with disposable profiles,
+real HTTP/WebSocket transports, and deterministic local HTTP/SSE and ACP model
+peers. It covers plugin loading/doctor, direct pairing, file operations, task
+control, notification routing, T3 restart/reconnect, revoked credentials and
+logout. It also drives a real Hermes agent conversation through the plugin.
+
+T3 Connect/Clerk/Cloudflare, live model providers, Desktop rendering, WSL and
+other operating systems still require their own acceptance. T3-initiated
+independent delegation to Hermes is a separate feature and is not added by
+these repairs.
 
 ## Community index (not submitted)
 

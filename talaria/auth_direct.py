@@ -78,6 +78,8 @@ def login(
     target = parse_pairing_url(pairing_url)
     env = T3EnvClient(target.http_base_url, client=client)
     descriptor = env.descriptor()
+    protocol_version = descriptor.get("orchestrationProtocolVersion", 1) if isinstance(descriptor, Mapping) else 1
+    env = T3EnvClient(target.http_base_url, client=client, protocol_version=protocol_version)
     env_name = _resolve_name(name, descriptor)
     validate_environment_name(ctx, env_name)
     exchanged = env.exchange_pairing(target.credential)

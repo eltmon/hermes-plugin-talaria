@@ -25,7 +25,7 @@ provides_tools:
   - t3_watch
   - t3_unwatch
 python_dependencies:
-  - cryptography
+  - "cryptography>=42,<51"
 config_schema:
   t3connect:
     type: dict

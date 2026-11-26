@@ -8,6 +8,7 @@ spawn fn), never from register().
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import json
 import threading
@@ -203,7 +204,8 @@ def _diff_thread(
         new_state != old_state or current.get("latestTurnId") != old.get("latestTurnId")
     ):
         events.append(
-            _salient("turn-settled", thread_id, sequence, turnState=new_state)
+            _salient("turn-settled", thread_id, sequence, turnState=new_state,
+                     turnId=current.get("latestTurnId"))
         )
     return events
 
@@ -515,6 +517,7 @@ async def run_watch(
 ) -> dict[str, Any]:
     """Consume/resume a stream, preserving reducer state across transient drops."""
     state = _copy_state(reducer_state)
+    notified_turns: dict[str, tuple[Any, Any]] = {}
     for attempt in range(6):
         request = dict(payload)
         if state["sequence"] > 0:
@@ -529,6 +532,16 @@ async def run_watch(
                     return state
                 state, events = reduce_item(state, item)
                 for event in events:
+                    # A restarting server can send an empty shell snapshot,
+                    # then rehydrate an already observed completed run.
+                    if event.get("kind") == "turn-settled" and event.get("turnId"):
+                        thread = event["threadId"]
+                        identity = (event["turnId"], event.get("turnState"))
+                        if notified_turns.get(thread) == identity:
+                            continue
+                        on_salient(event)
+                        notified_turns[thread] = identity
+                        continue
                     on_salient(event)
                 persist_sequence(state["sequence"])
             return state
@@ -570,9 +583,10 @@ def _call_spawn(spawn: Callable, coro, name: str):
 
 
 def _thread_fallback(coro) -> threading.Thread:
+    context = contextvars.copy_context()
     def worker() -> None:
         try:
-            asyncio.run(coro)
+            context.run(asyncio.run, coro)
         except Exception:
             return
 

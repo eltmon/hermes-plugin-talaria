@@ -110,6 +110,8 @@ def test_prompt_current_t3_uses_rpc_and_keeps_approval_required():
     assert peer.commands[0]["runtimeMode"] == "approval-required"
     assert peer.commands[-1]["text"] == "Investigate"
     assert peer.commands[-1]["dispatchMode"] == {"type": "start_immediately"}
+    assert peer.commands[-1]["createdBy"] == "agent"
+    assert peer.commands[-1]["creationSource"] == "provider"
 
 
 def test_thread_current_t3_returns_assistant_result_and_request_identity():
@@ -197,6 +199,9 @@ def test_current_task_controls_use_protocol_two(tool, args, expected_type):
     assert peer.commands[-1]["type"] == expected_type
     if expected_type == "run.interrupt":
         assert peer.commands[-1]["runId"] == "r1"
+    if expected_type == "thread.create":
+        assert peer.commands[-1]["createdBy"] == "agent"
+        assert peer.commands[-1]["creationSource"] == "provider"
 
 
 def test_current_thread_watch_reports_completion_only_for_selected_thread():

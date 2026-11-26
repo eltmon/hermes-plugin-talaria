@@ -787,7 +787,7 @@ def _tagged_from_cause(cause: Any) -> dict | None:
 def _rpc_failure_json(exc: RpcExitFailure) -> str:
     authz = _authz_from_cause(exc.cause)
     if authz is not None:
-        scope = authz.get("requiredScope")
+        scope = authz.get("requiredPermission") or authz.get("requiredScope")
         if not isinstance(scope, str) or not scope.strip():
             scope = authz.get("required_scope")
         scope = scope.strip() if isinstance(scope, str) else None
@@ -1117,8 +1117,25 @@ def _spawn_fn(ctx, kwargs):
     return None
 
 
+def _watch_context(kwargs):
+    """Capture the host's task-local route before a background worker starts.
+
+    Hermes tools receive session_id/conversation_id, not the routing session_key
+    supplied to slash commands. Its published session-context API owns that key.
+    """
+    if kwargs.get("session_key"):
+        return kwargs
+    try:
+        from gateway.session_context import get_session_env
+    except ImportError:
+        return kwargs
+    key = get_session_env("HERMES_SESSION_KEY", "")
+    return {**kwargs, "session_key": key} if key else kwargs
+
+
 def handle_t3_watch(args: dict, **kwargs) -> str:
     try:
+        kwargs = _watch_context(kwargs)
         ctx = _ctx(kwargs)
         if ctx is None:
             return _stub("t3_watch")
@@ -1146,6 +1163,7 @@ def handle_t3_watch(args: dict, **kwargs) -> str:
 
 def handle_t3_unwatch(args: dict, **kwargs) -> str:
     try:
+        kwargs = _watch_context(kwargs)
         ctx = _ctx(kwargs)
         if ctx is None:
             return _stub("t3_unwatch")

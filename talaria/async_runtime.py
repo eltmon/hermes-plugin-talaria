@@ -1,5 +1,6 @@
 """Run an async transport from Hermes' synchronous tool interface."""
 import asyncio
+import contextvars
 import threading
 
 
@@ -9,9 +10,10 @@ def run_sync(coro):
     except RuntimeError:
         return asyncio.run(coro)
     results, errors = [], []
+    context = contextvars.copy_context()
     def worker():
         try:
-            results.append(asyncio.run(coro))
+            results.append(context.run(asyncio.run, coro))
         except BaseException as exc:
             errors.append(exc)
     thread = threading.Thread(target=worker)
