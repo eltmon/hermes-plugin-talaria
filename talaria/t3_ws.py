@@ -9,11 +9,12 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import math
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
-from .errors import NotAuthenticated
+from .errors import NotAuthenticated, TalariaError
 
 OpenWs = Callable[[str], Awaitable[Any]]
 TicketFn = Callable[[], str]
@@ -25,6 +26,12 @@ INITIAL_BACKOFF_S = 1.0
 MAX_BACKOFF_S = 30.0
 AUTH_CLOSE_CODES = frozenset({1008, 4001, 4003, 4401, 4403})
 AUTH_HTTP_STATUSES = frozenset({401, 403})
+
+
+class RpcTimeout(TalariaError):
+    def __init__(self):
+        super().__init__("T3 RPC deadline exceeded; operation outcome is unknown",
+                         "check the remote task or file state before retrying a write")
 
 
 class TicketRejected(Exception):
@@ -48,16 +55,17 @@ class RpcProtocolError(Exception):
         super().__init__(f"{tag}: {payload}")
 
 
-def _ws_url(base_url: str, ticket: str) -> str:
+def _ws_url(base_url: str, ticket: str, protocol_version: int = 1) -> str:
     parsed = urlparse(base_url)
     scheme = (parsed.scheme or "https").lower()
     if scheme in ("http", "ws"):
         ws_scheme = "ws"
     else:
         ws_scheme = "wss"
-    return urlunparse(
-        (ws_scheme, parsed.netloc, "/ws", "", urlencode({"wsTicket": ticket}), "")
-    )
+    query = {"wsTicket": ticket}
+    if protocol_version == 2:
+        query["orchestrationProtocol"] = "2"
+    return urlunparse((ws_scheme, parsed.netloc, "/ws", "", urlencode(query), ""))
 
 
 def _close_code(exc: BaseException) -> int | None:
@@ -143,8 +151,14 @@ class T3WsClient:
         open_ws: OpenWs | None = None,
         sleep: SleepFn | None = None,
         now: NowFn | None = None,
+        protocol_version: int = 1,
+        request_timeout: float = 30.0,
     ) -> None:
         self.base_url = base_url
+        self.protocol_version = protocol_version
+        if isinstance(request_timeout, bool) or not math.isfinite(request_timeout) or request_timeout <= 0:
+            raise ValueError("request_timeout must be finite and positive")
+        self.request_timeout = request_timeout
         self._ticket_fn = ticket_fn
         self._open_ws = open_ws
         self._sleep = sleep if sleep is not None else asyncio.sleep
@@ -173,6 +187,16 @@ class T3WsClient:
         *,
         headers: list | None = None,
     ) -> Any:
+        try:
+            return await asyncio.wait_for(
+                self._request_once(tag, payload, headers=headers), self.request_timeout)
+        except asyncio.TimeoutError as exc:
+            raise RpcTimeout() from exc
+
+    async def _request_once(
+        self, tag: str, payload: Mapping[str, Any] | None = None,
+        *, headers: list | None = None,
+    ) -> Any:
         await self._ensure_connected()
         request_id = self._new_id()
         fut = asyncio.get_running_loop().create_future()
@@ -191,13 +215,13 @@ class T3WsClient:
         *,
         headers: list | None = None,
     ) -> AsyncIterator[Any]:
-        await self._ensure_connected()
+        await asyncio.wait_for(self._ensure_connected(), self.request_timeout)
         request_id = self._new_id()
         queue: asyncio.Queue[Any] = asyncio.Queue()
         self._streams[request_id] = queue
-        await self._send(_request_frame(request_id, tag, payload, headers))
         finished = False
         try:
+            await asyncio.wait_for(self._send(_request_frame(request_id, tag, payload, headers)), self.request_timeout)
             while True:
                 kind, data = await queue.get()
                 if kind == "chunk":
@@ -218,7 +242,7 @@ class T3WsClient:
             self._streams.pop(request_id, None)
             if not finished and not self._closing:
                 try:
-                    await self._send({"_tag": "Interrupt", "requestId": request_id})
+                    await asyncio.wait_for(self._send({"_tag": "Interrupt", "requestId": request_id}), 5.0)
                 except Exception:
                     pass
 
@@ -226,7 +250,7 @@ class T3WsClient:
         self._closing = True
         for request_id in list(self._streams):
             try:
-                await self._send({"_tag": "Interrupt", "requestId": request_id})
+                await asyncio.wait_for(self._send({"_tag": "Interrupt", "requestId": request_id}), 5.0)
             except Exception:
                 pass
         reader = self._reader
@@ -243,7 +267,7 @@ class T3WsClient:
             close = getattr(ws, "close", None)
             if close is not None:
                 try:
-                    await close()
+                    await asyncio.wait_for(close(), 5.0)
                 except Exception:
                     pass
         self._fail_waiters(ConnectionError("closed"))
@@ -283,7 +307,7 @@ class T3WsClient:
 
     async def _dial(self) -> None:
         ticket = self._ticket_fn()
-        url = _ws_url(self.base_url, ticket)
+        url = _ws_url(self.base_url, ticket, self.protocol_version)
         open_ws = self._open_ws if self._open_ws is not None else _default_open_ws
         ws = await open_ws(url)
         self._ws = ws

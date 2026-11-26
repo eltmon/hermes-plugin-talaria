@@ -9,8 +9,11 @@ read agent output, and read/write files in the environment's worktrees.
 The plugin id is `t3code`; the project name Talaria distinguishes this repo
 from T3 Code itself.
 
-**Status:** Milestone 1 (HTTP + both auth modes) and Milestone 2 (WebSocket
-file tools + live watch) are implemented. Tested against **t3code 0.0.37**.
+**Development branch:** protocol-2 support targets the **T3 Code v0.1.10**
+contracts, alongside explicit legacy protocol-1 support for **0.0.37**.
+The original release documented testing against 0.0.37. The current adapter has
+offline regression coverage; live Hermes/T3 interoperability has not yet been
+accepted. This branch does not replace or patch your T3 installation.
 
 ```
 hermes plugins install eltmon/hermes-plugin-talaria
@@ -66,7 +69,7 @@ the environment entry and stores the bearer as a hermes secret.
 
 2. Restart Hermes if it is already running.
 
-3. On the machine that runs T3 Code (tested **t3code 0.0.37**), start the
+3. On the machine that runs T3 Code, start the
    server and print a pairing URL:
 
    ```
@@ -160,7 +163,7 @@ an optional `environment` argument (name or `environmentId`).
 | `t3_list` | Projects and threads (`worktreePath`, `latestTurn`, pending flags) |
 | `t3_thread` | Turn history and extracted agent output |
 | `t3_new_thread` | Create a thread in a project |
-| `t3_prompt` | Start a turn (`thread.turn.start`) |
+| `t3_prompt` | Send a prompt (protocol 2 uses `message.dispatch`) |
 | `t3_interrupt` | Interrupt the in-progress turn |
 | `t3_respond` | Answer approval or user-input requests |
 | `t3_wait` | Poll until the turn settles or a pending request appears |
@@ -192,7 +195,7 @@ plugins:
           clerk_publishable_key: pk_live_Y2xlcmsudDMuY29kZXMk
           clerk_oauth_client_id: hzxSgY2cH10sDU2r
         environments:
-          laptop: { base_url: "https://t3.tail1234.ts.net" }
+          laptop: { base_url: "https://t3.tail1234.ts.net", protocol_version: 2 }
         default_environment: null
         allow_gateway_injection: false
 ```
@@ -267,9 +270,50 @@ fallback. On 401, tools return JSON naming the re-auth command
 
 ## Compatibility
 
-WebSocket file tools and `t3_watch` speak Effect RPC JSON frames captured
-against **t3code 0.0.37**. Newer T3 Code releases that keep that frame shape
-should work; if frames change, pin 0.0.37 until Talaria is updated.
+Connections default to orchestration **protocol 2**, targeting the contracts at
+T3 Code v0.1.10 (`7d32075e3757ded707914e2450c3e392a9665765`). The client checks
+the descriptor before reading orchestration state or dispatching tasks, sends
+the required HTTP header and WebSocket query parameter, and uses current RPC
+commands. Unknown protocol versions are rejected before task mutation. Multiple
+commands set the requested permission/interaction modes before a prompt; they
+are not an atomic transaction, and a failure can leave those settings changed
+without submitting the prompt. Refresh state before retrying.
+
+For a legacy T3 0.0.37 environment, explicitly set `protocol_version: 1` on its
+direct `environments` entry. The low-level Python client retains its legacy
+default for existing callers; plugin-created clients use the environment's
+version. T3 Connect discovery uses protocol 2.
+
+Protocol-2 `t3_list` exposes `pendingRequest` (including request ID and the
+human-only marker); `t3_thread` includes pending request records. User-only and
+stale requests are refused by `t3_respond`. History cursors are opaque and must
+come from the same server/protocol. Current history uses the dedicated history
+endpoint. File tools keep using T3's project RPCs.
+
+Watches are owned by the requesting Hermes conversation. Separate conversations
+have independent readers/cursors and cancellation. Protocol-2 thread watches
+filter the authoritative shell stream to that thread. Transient subscription
+drops resume from the consumed sequence with capped backoff (five retries);
+terminal failures notify the owner and mark the persisted target failed. A host
+restart still requires calling `t3_watch` again; persisted cursors are reused.
+When Hermes supplies a conversation key, the host must support scoped message
+injection; Talaria refuses to downgrade private delivery to a broadcast.
+
+RPC operations have a 30-second async deadline, plus bounded HTTP token requests
+and connection cleanup. A timed-out write or task dispatch has an **unknown
+outcome**: inspect remote state before retrying. Mutating RPCs are not replayed
+automatically.
+
+Environment names that map to the same credential key (for example `work-laptop`
+and `work_laptop`) are rejected before exchange, use or logout. Existing tokens
+are preserved; ambiguous old configurations must be renamed and re-paired
+deliberately rather than guessing which host owns a token.
+
+The automated tests use synthetic peers, not live accounts. Real Hermes plugin
+loading, conversation routing, pairing, T3 Connect, Windows/WSL path behavior and
+restart/reconnect acceptance still need a disposable end-to-end run before
+installation into a real Hermes profile. T3-initiated independent delegation to
+Hermes is a separate feature and is not added by these repairs.
 
 ## Community index (not submitted)
 

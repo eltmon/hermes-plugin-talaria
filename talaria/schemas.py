@@ -41,7 +41,8 @@ T3_LIST_SCHEMA = _schema(
         "(workspaceRoot). Each thread includes id, projectId, title, worktreePath, "
         "latestTurn {turnId, state}, hasPendingApprovals, and hasPendingUserInput. "
         "Use this to find a thread to read, prompt, interrupt, or respond to. "
-        "Respond with t3_respond when a pending flag is true."
+        "On protocol 2 pendingRequest includes its id, kind and userOnly marker. "
+        "Only respond to a matching non-userOnly request."
     ),
     {"environment": ENVIRONMENT},
 )
@@ -52,8 +53,9 @@ T3_THREAD_SCHEMA = _schema(
         "Read a T3 Code thread's turn history and extracted agent (assistant) "
         "output text from GET /api/orchestration/threads/:id. Use after t3_list "
         "when you need conversation contents, not just the snapshot. turn_limit "
-        "defaults to 5 (sent as turnLimit). before_cursor is passed through as "
-        "beforeCursor; the response page.beforeCursor is the next paging token. "
+        "defaults to 5. Protocol 2 reads the current projection and uses its "
+        "dedicated history endpoint for before_cursor. Legacy sends turnLimit "
+        "and beforeCursor. The response page.beforeCursor is the next opaque token. "
         "If the JSON would exceed 32768 characters, older turns are omitted "
         "(latest kept) and truncated is true."
     ),
@@ -141,7 +143,8 @@ T3_PROMPT_SCHEMA = _schema(
     "t3_prompt",
     (
         "Start a turn on a T3 Code thread by sending a user prompt (dispatch "
-        "thread.turn.start). Optional model_selection {instance_id, model}, "
+        "message.dispatch on protocol 2, thread.turn.start on legacy). "
+        "Optional model_selection {instance_id, model}, "
         "runtime_mode (default approval-required — never full-access unless the "
         "user explicitly asks), and interaction_mode (default | plan). After "
         "sending, use t3_wait rather than guessing when the turn has settled."
@@ -186,7 +189,8 @@ T3_RESPOND_SCHEMA = _schema(
         "Respond to a pending approval request or user-input request on a T3 Code "
         "thread (dispatch thread.approval.respond or thread.user-input.respond). "
         "Use kind=approval or kind=user-input. Check t3_list pending flags to "
-        "see which kind is needed."
+        "see which kind is needed. User-only, authentication and stale requests "
+        "must be answered in T3 by the user."
     ),
     {
         "environment": ENVIRONMENT,

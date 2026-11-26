@@ -21,7 +21,7 @@ from talaria.watch import (
 
 BASE = "https://t3.example.test"
 TOKEN = "tok-test"
-LAPTOP = {"base_url": BASE}
+LAPTOP = {"base_url": BASE, "protocol_version": 1}
 THREAD_ID = "thr-fix-flaky"
 
 

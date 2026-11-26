@@ -558,8 +558,9 @@ class DpopEnvClient(T3EnvClient):
         make_proof: Callable[[str, str, str], str],
         *,
         client: httpx.Client | None = None,
+        protocol_version: int = 1,
     ) -> None:
-        super().__init__(base_url, headers_fn=None, client=client)
+        super().__init__(base_url, headers_fn=None, client=client, protocol_version=protocol_version)
         self._get_access_token = get_access_token
         self._make_proof = make_proof
 
@@ -603,7 +604,8 @@ def make_dpop_env_client(ref, ctx, store, *, inner: T3EnvClient | None = None) -
 
     http = inner._client if inner is not None else None
     base_url = inner.base_url if inner is not None else ref.base_url
-    return DpopEnvClient(base_url, get_token, make_proof, client=http)
+    return DpopEnvClient(base_url, get_token, make_proof, client=http,
+                         protocol_version=ref.protocol_version)
 
 
 def _t3connect_raw(ctx) -> Mapping[str, Any]:

@@ -812,6 +812,8 @@ def test_t3_environments_retries_list_after_clerk_refresh(make_http, monkeypatch
 def _mode_b_runtime_handler(*, shell_status: int = 200) -> object:
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
+        if path == "/.well-known/t3/environment":
+            return _json(200, {"orchestrationProtocolVersion": 2})
         if path == "/v1/environments":
             return _json(
                 200,

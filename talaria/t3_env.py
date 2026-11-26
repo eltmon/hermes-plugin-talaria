@@ -14,7 +14,10 @@ from urllib.parse import quote, urlparse, urlunparse
 
 import httpx
 
-from .errors import NotAuthenticated, T3ApiError
+from .errors import NotAuthenticated, T3ApiError, TalariaError
+from .protocol import shell_snapshot, thread_snapshot, history_snapshot, dispatch_commands
+from .async_runtime import run_sync
+from .t3_ws import T3WsClient
 
 try:
     from plugins.plugin_utils import lazy_singleton as _lazy_singleton
@@ -106,10 +109,29 @@ class T3EnvClient:
         headers_fn: HeadersFn | None = None,
         *,
         client: httpx.Client | None = None,
+        protocol_version: int = 1,
+        open_ws=None,
     ) -> None:
         self.base_url = base_url
         self.headers_fn = headers_fn
         self._client = client
+        if protocol_version not in (1, 2) or isinstance(protocol_version, bool):
+            raise TalariaError("unsupported orchestration protocol", "use protocol_version 1 or 2")
+        self.protocol_version = protocol_version
+        self._protocol_checked = False
+        self._open_ws = open_ws
+
+    def check_protocol(self) -> None:
+        if self.protocol_version != 2 or self._protocol_checked:
+            return
+        descriptor = self.descriptor()
+        version = descriptor.get("orchestrationProtocolVersion") if isinstance(descriptor, dict) else None
+        if version != 2:
+            raise TalariaError(
+                f"unsupported server orchestration protocol: {version!r}",
+                "this connection requires protocol 2; use an explicit legacy connection only for T3 0.0.37",
+            )
+        self._protocol_checked = True
 
     def _http(self) -> httpx.Client:
         return self._client if self._client is not None else get_client()
@@ -130,6 +152,8 @@ class T3EnvClient:
     ) -> Any:
         url = self._url(path)
         headers: dict[str, str] = dict(extra_headers or {})
+        if self.protocol_version == 2 and path.startswith("/api/orchestration/"):
+            headers["x-t3-orchestration-protocol"] = "2"
         if auth and self.headers_fn is not None:
             headers.update(self.headers_fn())
         return _parse(
@@ -147,7 +171,9 @@ class T3EnvClient:
         return self._request("GET", "/.well-known/t3/environment", auth=False)
 
     def shell(self) -> Any:
-        return self._request("GET", "/api/orchestration/shell")
+        self.check_protocol()
+        raw = self._request("GET", "/api/orchestration/shell")
+        return shell_snapshot(raw) if self.protocol_version == 2 else raw
 
     def thread(
         self,
@@ -155,7 +181,14 @@ class T3EnvClient:
         turn_limit: int | None = None,
         before_cursor: str | None = None,
     ) -> Any:
+        self.check_protocol()
         params: dict[str, Any] = {}
+        if self.protocol_version == 2:
+            path = "/api/orchestration/threads/" + quote(str(thread_id), safe="")
+            if before_cursor:
+                return history_snapshot(self._request("GET", path + "/history",
+                    params={"cursor": before_cursor, "view": "conversation"}), thread_id)
+            return thread_snapshot(self._request("GET", path), turn_limit)
         if turn_limit is not None:
             params["turnLimit"] = turn_limit
         if before_cursor is not None:
@@ -164,9 +197,27 @@ class T3EnvClient:
         return self._request("GET", path, params=params or None)
 
     def dispatch(self, command: dict) -> Any:
+        if self.protocol_version == 2:
+            self.check_protocol()
+            shell = self.shell() if command["type"] in (
+                "thread.turn.interrupt", "thread.approval.respond", "thread.user-input.respond",
+            ) else None
+            commands = dispatch_commands(command, shell)
+            async def send():
+                client = T3WsClient(self.base_url, lambda: self.ws_ticket()["ticket"],
+                                    protocol_version=2, open_ws=self._open_ws)
+                try:
+                    result = None
+                    for item in commands:
+                        result = await client.request("orchestration.dispatchCommand", item)
+                    return result
+                finally:
+                    await client.close()
+            return run_sync(send())
         return self._request("POST", "/api/orchestration/dispatch", json=command)
 
     def ws_ticket(self) -> Any:
+        self.check_protocol()
         return self._request("POST", "/api/auth/websocket-ticket")
 
     def exchange_pairing(self, subject_token: str) -> Any:
