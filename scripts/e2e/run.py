@@ -59,7 +59,7 @@ def main():
         command(['project', 'add', '--base-dir', str(ROOT / 't3'), '--title', 'Talaria QA', str(ROOT / 'work')])
         script('configure_agent.py')
         script('mint_pair.py')
-        for mode in ('doctor', 'pair', 'files', 'tasks', 'controls', 'routing', 'reconnect', 'agent-loop'):
+        for mode in ('doctor', 'tool-discovery', 'pair', 'files', 'tasks', 'controls', 'routing', 'reconnect', 'agent-loop'):
             script('run_hermes_host.py', mode)
             report['checks'].append(mode)
         revoke_all()

@@ -39,6 +39,21 @@ else:
               'tools': loaded.tools_registered if loaded else []}
     print(json.dumps(result, default=str), flush=True)
     assert loaded and loaded.enabled and not loaded.error and len(loaded.tools_registered) == 14, result
+    if sys.argv[1:] == ['tool-discovery']:
+        from model_tools import get_tool_definitions
+        from tools.tool_search import dispatch_tool_search
+        definitions = get_tool_definitions(enabled_toolsets=['t3code'], quiet_mode=True,
+                                           skip_tool_search_assembly=True)
+        searched = json.loads(dispatch_tool_search(
+            {'queries': ['Talaria', 'Talaria list projects threads', 'T3 projects']},
+            current_tool_defs=definitions))
+        rows = searched['results']
+        report = {'stage': 'tool-discovery', 'results': rows}
+        (ARTIFACTS / 'tool-discovery.json').write_text(json.dumps(report), encoding='utf-8')
+        print(json.dumps(report), flush=True)
+        assert rows[0]['matches'], 'Talaria is installed but cannot be found by its user-facing name'
+        assert 't3_list' in rows[1]['matches'], rows[1]
+        assert 't3_list' in rows[2]['matches'], rows[2]
     if sys.argv[1:] == ['pair']:
         import argparse
         private = ARTIFACTS

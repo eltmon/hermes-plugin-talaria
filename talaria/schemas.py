@@ -16,7 +16,9 @@ def _schema(name: str, description: str, properties: dict, required: list | None
     parameters = {"type": "object", "properties": properties}
     if required:
         parameters["required"] = required
-    return {"name": name, "description": description, "parameters": parameters}
+    # Tool Search indexes tool descriptions; the repository's product name is
+    # otherwise absent from every schema even though users ask for Talaria.
+    return {"name": name, "description": f"Talaria: {description}", "parameters": parameters}
 
 
 T3_ENVIRONMENTS_SCHEMA = _schema(

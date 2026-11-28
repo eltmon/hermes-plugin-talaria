@@ -85,6 +85,11 @@ notification receiver is instrumented through Hermes' real routing API; this
 does not exercise Desktop rendering. RPC deadline behavior stays covered by the
 fast synthetic network tests.
 
+The `tool-discovery` stage uses Hermes' real Tool Search dispatcher to find the
+plugin by its user-facing name, Talaria, and resolve a project/thread lookup to
+`t3_list`. This catches installed tools that a chat cannot discover by the name
+the user knows.
+
 Results and payload hashes are written to `<root>/results/report.json`, with
 per-stage JSON and logs beside it. The runner stops its verified owned server
 tree and revokes its disposable bearer sessions, including on failure. Retain
