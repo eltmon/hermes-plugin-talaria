@@ -85,6 +85,15 @@ def test_import_and_register_open_no_socket(socket_guard):
     _register(socket_guard)
 
 
+def test_registered_tools_are_searchable_by_the_talaria_product_name(socket_guard):
+    # Hermes Tool Search indexes the registered tool descriptions, not the repo name.
+    _mod, ctx = _register(socket_guard)
+    assert ctx.tools
+    missing = [row['name'] for row in ctx.tools
+               if 'talaria' not in row['schema']['description'].lower()]
+    assert missing == [], f'Tools invisible to a Talaria search: {missing}'
+
+
 def test_register_t3code_cli(socket_guard):
     _mod, ctx = _register(socket_guard)
     assert [row["name"] for row in ctx.cli] == ["t3code"]

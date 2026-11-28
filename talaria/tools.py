@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import json
 import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from .async_runtime import run_sync as _run_async
 from .auth_t3connect import (
     ACCESS_SECRET,
     ConnectAuthError,
@@ -102,7 +102,7 @@ def make_env_client(
     factory = _client_factory
     if factory is not None:
         return factory(ref, headers_fn)
-    return T3EnvClient(ref.base_url, headers_fn)
+    return T3EnvClient(ref.base_url, headers_fn, protocol_version=ref.protocol_version)
 
 
 def _stub(name: str) -> str:
@@ -269,7 +269,7 @@ def _condense_project(raw: Any) -> dict | None:
 def _condense_thread_shell(raw: Any) -> dict | None:
     if not isinstance(raw, dict):
         return None
-    return {
+    result = {
         "id": raw.get("id"),
         "projectId": raw.get("projectId"),
         "title": raw.get("title"),
@@ -278,6 +278,9 @@ def _condense_thread_shell(raw: Any) -> dict | None:
         "hasPendingApprovals": raw.get("hasPendingApprovals"),
         "hasPendingUserInput": raw.get("hasPendingUserInput"),
     }
+    if "pendingRequest" in raw:
+        result["pendingRequest"] = raw["pendingRequest"]
+    return result
 
 
 def _page_from_snapshot(snapshot: dict) -> dict | None:
@@ -484,6 +487,8 @@ def handle_t3_thread(args: dict, **kwargs) -> str:
         }
         if page is not None:
             payload["page"] = page
+        if "pendingRequests" in thread:
+            payload["pendingRequests"] = thread["pendingRequests"]
         payload = _fit_thread_payload(payload)
         return json.dumps(payload)
     except TalariaError as exc:
@@ -700,30 +705,6 @@ def handle_t3_wait(args: dict, **kwargs) -> str:
         return _unexpected(exc)
 
 
-def _run_async(coro):
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    import threading
-
-    box: list[Any] = []
-    err: list[BaseException] = []
-
-    def worker() -> None:
-        try:
-            box.append(asyncio.run(coro))
-        except BaseException as exc:
-            err.append(exc)
-
-    thread = threading.Thread(target=worker)
-    thread.start()
-    thread.join()
-    if err:
-        raise err[0]
-    return box[0]
-
-
 def _ws_client_for(ctx, ref: EnvironmentRef):
     factory = _ws_client_factory
     if factory is not None:
@@ -740,7 +721,7 @@ def _ws_client_for(ctx, ref: EnvironmentRef):
             return raw.strip()
         raise T3ApiError(200, "websocket-ticket response missing ticket")
 
-    return T3WsClient(ref.base_url, ticket_fn)
+    return T3WsClient(ref.base_url, ticket_fn, protocol_version=ref.protocol_version)
 
 
 async def _ws_call(client, tag: str, payload: Mapping[str, Any]) -> Any:
@@ -806,7 +787,7 @@ def _tagged_from_cause(cause: Any) -> dict | None:
 def _rpc_failure_json(exc: RpcExitFailure) -> str:
     authz = _authz_from_cause(exc.cause)
     if authz is not None:
-        scope = authz.get("requiredScope")
+        scope = authz.get("requiredPermission") or authz.get("requiredScope")
         if not isinstance(scope, str) or not scope.strip():
             scope = authz.get("required_scope")
         scope = scope.strip() if isinstance(scope, str) else None
@@ -1136,8 +1117,25 @@ def _spawn_fn(ctx, kwargs):
     return None
 
 
+def _watch_context(kwargs):
+    """Capture the host's task-local route before a background worker starts.
+
+    Hermes tools receive session_id/conversation_id, not the routing session_key
+    supplied to slash commands. Its published session-context API owns that key.
+    """
+    if kwargs.get("session_key"):
+        return kwargs
+    try:
+        from gateway.session_context import get_session_env
+    except ImportError:
+        return kwargs
+    key = get_session_env("HERMES_SESSION_KEY", "")
+    return {**kwargs, "session_key": key} if key else kwargs
+
+
 def handle_t3_watch(args: dict, **kwargs) -> str:
     try:
+        kwargs = _watch_context(kwargs)
         ctx = _ctx(kwargs)
         if ctx is None:
             return _stub("t3_watch")
@@ -1155,6 +1153,7 @@ def handle_t3_watch(args: dict, **kwargs) -> str:
             spawn=_spawn_fn(ctx, kwargs),
             client_factory=lambda: _ws_client_for(ctx, ref),
             kwargs=kwargs,
+            protocol_version=ref.protocol_version,
         )
     except TalariaError as exc:
         return exc.to_json()
@@ -1164,6 +1163,7 @@ def handle_t3_watch(args: dict, **kwargs) -> str:
 
 def handle_t3_unwatch(args: dict, **kwargs) -> str:
     try:
+        kwargs = _watch_context(kwargs)
         ctx = _ctx(kwargs)
         if ctx is None:
             return _stub("t3_unwatch")
@@ -1176,6 +1176,7 @@ def handle_t3_unwatch(args: dict, **kwargs) -> str:
             kind=kind,
             environment=ref.name,
             thread_id=thread_id,
+            session_key=kwargs.get("session_key"),
         )
     except TalariaError as exc:
         return exc.to_json()

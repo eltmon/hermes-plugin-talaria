@@ -12,7 +12,7 @@ from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import EnvironmentNotFound
+from .errors import EnvironmentNotFound, TalariaError
 
 # WI-9 writes a normalized map here via ctx.state.set/get (PluginState) or a
 # dict on fake ctx. Shape: {name: {base_url, environment_id?, mode?}}.
@@ -28,6 +28,7 @@ class EnvironmentRef:
     base_url: str
     environment_id: str | None = None
     mode: str = "direct"
+    protocol_version: int = 2
 
 
 def secret_name_for(env_name: str) -> str:
@@ -91,7 +92,25 @@ def resolve_environments(ctx) -> dict[str, EnvironmentRef]:
         ref = _parse_ref(name, spec, default_mode="t3connect")
         if ref is not None and ref.name not in result:
             result[ref.name] = ref
+    _check_secret_names(result)
     return result
+
+
+def _check_secret_names(names) -> None:
+    owners: dict[str, str] = {}
+    for name in names:
+        key = secret_name_for(name)
+        if key in owners and owners[key] != name:
+            raise TalariaError(
+                f"environment names {owners[key]!r} and {name!r} collide",
+                "rename the ambiguous configuration entries before pairing or using credentials",
+            )
+        owners[key] = name
+
+
+def validate_environment_name(ctx, name: str) -> None:
+    """Check before exchange/write/delete; keep existing token names compatible."""
+    _check_secret_names([*resolve_environments(ctx), name])
 
 
 def resolve_environment(ctx, name: str | None = None) -> EnvironmentRef:
@@ -135,6 +154,7 @@ def _parse_ref(name: str, raw: Any, *, default_mode: str) -> EnvironmentRef | No
             base_url=raw.base_url,
             environment_id=raw.environment_id,
             mode=raw.mode or default_mode,
+            protocol_version=raw.protocol_version,
         )
     if not isinstance(raw, Mapping):
         return None
@@ -144,6 +164,10 @@ def _parse_ref(name: str, raw: Any, *, default_mode: str) -> EnvironmentRef | No
     base_url = base_url.strip()
     if not base_url:
         return None
+    protocol_version = raw.get("protocol_version", 2)
+    if isinstance(protocol_version, bool) or protocol_version not in (1, 2):
+        raise TalariaError(f"unsupported orchestration protocol for {name}",
+                           "set protocol_version to 2, or 1 for an explicit legacy connection")
     env_id = raw.get("environment_id", raw.get("environmentId"))
     if env_id is not None:
         env_id = str(env_id).strip() or None
@@ -157,6 +181,7 @@ def _parse_ref(name: str, raw: Any, *, default_mode: str) -> EnvironmentRef | No
         base_url=base_url,
         environment_id=env_id,
         mode=mode,
+        protocol_version=protocol_version,
     )
 
 

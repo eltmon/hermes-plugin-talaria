@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl, urlparse, urlunparse
 
-from .config import secret_name_for, set_secret
+from .config import secret_name_for, set_secret, validate_environment_name
 from .t3_env import T3EnvClient
 
 _SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z\d+-]*://")
@@ -78,8 +78,11 @@ def login(
     target = parse_pairing_url(pairing_url)
     env = T3EnvClient(target.http_base_url, client=client)
     descriptor = env.descriptor()
-    exchanged = env.exchange_pairing(target.credential)
+    protocol_version = descriptor.get("orchestrationProtocolVersion", 1) if isinstance(descriptor, Mapping) else 1
+    env = T3EnvClient(target.http_base_url, client=client, protocol_version=protocol_version)
     env_name = _resolve_name(name, descriptor)
+    validate_environment_name(ctx, env_name)
+    exchanged = env.exchange_pairing(target.credential)
     token = _access_token(exchanged)
     set_secret(secret_name_for(env_name), token, store=store)
     _upsert_environment(ctx, env_name, target.http_base_url)
@@ -101,6 +104,7 @@ def logout(
     env_name = env.strip() if isinstance(env, str) else ""
     if not env_name:
         raise ValueError("environment name is required")
+    validate_environment_name(ctx, env_name)
     _remove_secret(secret_name_for(env_name), store=store)
     existing = ctx.get_config("environments", {}) or {}
     if isinstance(existing, Mapping) and env_name in existing:

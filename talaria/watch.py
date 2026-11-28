@@ -8,6 +8,7 @@ spawn fn), never from register().
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import json
 import threading
@@ -15,6 +16,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from .errors import TalariaError
+from .protocol import stream_item
 
 WATCH_STATE_KEY = "watch"
 SHELL_TAG = "orchestration.subscribeShell"
@@ -29,7 +31,8 @@ GRANT_HINT = (
 )
 _SETTLED_TURN_STATES = frozenset({"completed", "interrupted", "error"})
 
-_live: dict[str, dict[str, Any]] = {}
+_live: dict[tuple[int, str], dict[str, Any]] = {}
+_state_lock = threading.RLock()
 
 
 def reset_live_watches() -> None:
@@ -66,7 +69,10 @@ def grant_denied_json() -> str:
     )
 
 
-def watch_id(kind: str, environment: str, thread_id: str | None = None) -> str:
+def watch_id(kind: str, environment: str, thread_id: str | None = None,
+             session_key: str | None = None) -> str:
+    if session_key:
+        return json.dumps([session_key, environment, kind, thread_id], separators=(",", ":"))
     if kind == "thread":
         return f"{environment}:thread:{thread_id}"
     return f"{environment}:shell"
@@ -79,6 +85,7 @@ def reduce_item(
     current = _copy_state(state)
     if not isinstance(item, dict):
         return current, []
+    item = stream_item(item)
     kind = item.get("kind")
     if kind == "synchronized":
         return current, []
@@ -135,6 +142,7 @@ def _thread_flags(raw: Any) -> dict[str, Any] | None:
         "latestTurnId": turn_id,
         "hasPendingApprovals": bool(raw.get("hasPendingApprovals")),
         "hasPendingUserInput": bool(raw.get("hasPendingUserInput")),
+        "pendingRequestId": (raw.get("pendingRequest") or {}).get("id"),
         "sessionStatus": session_status,
         "activeTurnId": active_turn_id,
     }
@@ -185,15 +193,19 @@ def _diff_thread(
     old = previous if isinstance(previous, Mapping) else {}
     thread_id = current.get("id")
     events: list[dict[str, Any]] = []
-    if current.get("hasPendingApprovals") and not old.get("hasPendingApprovals"):
+    request_changed = current.get("pendingRequestId") != old.get("pendingRequestId")
+    if current.get("hasPendingApprovals") and (not old.get("hasPendingApprovals") or request_changed):
         events.append(_salient("approval-requested", thread_id, sequence))
-    if current.get("hasPendingUserInput") and not old.get("hasPendingUserInput"):
+    if current.get("hasPendingUserInput") and (not old.get("hasPendingUserInput") or request_changed):
         events.append(_salient("user-input-requested", thread_id, sequence))
     new_state = current.get("latestTurnState")
     old_state = old.get("latestTurnState")
-    if new_state in _SETTLED_TURN_STATES and new_state != old_state:
+    if new_state in _SETTLED_TURN_STATES and (
+        new_state != old_state or current.get("latestTurnId") != old.get("latestTurnId")
+    ):
         events.append(
-            _salient("turn-settled", thread_id, sequence, turnState=new_state)
+            _salient("turn-settled", thread_id, sequence, turnState=new_state,
+                     turnId=current.get("latestTurnId"))
         )
     return events
 
@@ -293,6 +305,11 @@ def _fold_thread_event(flags: dict[str, Any], event: Mapping[str, Any]) -> dict[
     payload = event.get("payload")
     if not isinstance(payload, Mapping):
         payload = {}
+    if etype in ("thread.approval-response-requested", "thread.user-input-response-requested"):
+        key = "hasPendingApprovals" if etype == "thread.approval-response-requested" else "hasPendingUserInput"
+        out[key] = False
+        out["pendingRequestId"] = None
+        return out
     if etype == "thread.settled":
         out["latestTurnState"] = "completed"
         return out
@@ -306,6 +323,10 @@ def _fold_thread_event(flags: dict[str, Any], event: Mapping[str, Any]) -> dict[
         out["activeTurnId"] = active
         settled = _settled_turn_state_for_session(status)
         if status == "running" and isinstance(active, str) and active:
+            if active != flags.get("latestTurnId"):
+                out["hasPendingApprovals"] = False
+                out["hasPendingUserInput"] = False
+                out["pendingRequestId"] = None
             out["latestTurnState"] = "running"
             out["latestTurnId"] = active
         elif flags.get("latestTurnState") == "running" and settled is not None:
@@ -345,6 +366,9 @@ def _fold_thread_event(flags: dict[str, Any], event: Mapping[str, Any]) -> dict[
         out["hasPendingApprovals"] = True
     elif activity_kind == "user-input.requested":
         out["hasPendingUserInput"] = True
+    if activity_kind in ("approval.requested", "user-input.requested"):
+        activity = payload.get("activity") or {}
+        out["pendingRequestId"] = activity.get("requestId")
     return out
 
 
@@ -417,18 +441,20 @@ def _cursor_for(ctx, wid: str) -> int:
 
 
 def _put_target(ctx, wid: str, target: dict[str, Any], sequence: int | None = None) -> None:
-    blob = _watch_blob(ctx)
-    blob["targets"][wid] = target
-    if sequence is not None:
-        blob["cursors"][wid] = sequence
-    _save_watch_blob(ctx, blob)
+    with _state_lock:
+        blob = _watch_blob(ctx)
+        blob["targets"][wid] = target
+        if sequence is not None:
+            blob["cursors"][wid] = sequence
+        _save_watch_blob(ctx, blob)
 
 
 def _drop_target(ctx, wid: str) -> None:
-    blob = _watch_blob(ctx)
-    blob["targets"].pop(wid, None)
-    blob["cursors"].pop(wid, None)
-    _save_watch_blob(ctx, blob)
+    with _state_lock:
+        blob = _watch_blob(ctx)
+        blob["targets"].pop(wid, None)
+        blob["cursors"].pop(wid, None)
+        _save_watch_blob(ctx, blob)
 
 
 def parse_kind(args: Mapping[str, Any] | None) -> str:
@@ -471,6 +497,8 @@ def format_inject_message(
     elif kind == "turn-settled":
         turn_state = event.get("turnState") or "settled"
         action = f"turn settled ({turn_state})."
+    elif kind == "watch-failed":
+        action = "watch failed; monitoring stopped. Check authentication/connectivity and retry t3_watch."
     else:
         action = str(kind)
     return f"[t3code {environment}] thread {thread_id}: {action}"
@@ -485,30 +513,53 @@ async def run_watch(
     on_salient: Callable[[dict[str, Any]], None],
     persist_sequence: Callable[[int], None],
     stop: threading.Event,
+    sleep: Callable = asyncio.sleep,
 ) -> dict[str, Any]:
-    """Consume a subscribe stream until stop or the iterator ends."""
+    """Consume/resume a stream, preserving reducer state across transient drops."""
     state = _copy_state(reducer_state)
-    subscribe = client.subscribe
-    agen = subscribe(tag, payload)
-    if inspect.isawaitable(agen):
-        agen = await agen
-    try:
-        async for item in agen:
+    notified_turns: dict[str, tuple[Any, Any]] = {}
+    for attempt in range(6):
+        request = dict(payload)
+        if state["sequence"] > 0:
+            request["afterSequence"] = state["sequence"]
+        agen = None
+        try:
+            agen = client.subscribe(tag, request)
+            if inspect.isawaitable(agen):
+                agen = await agen
+            async for item in agen:
+                if stop.is_set():
+                    return state
+                state, events = reduce_item(state, item)
+                for event in events:
+                    # A restarting server can send an empty shell snapshot,
+                    # then rehydrate an already observed completed run.
+                    if event.get("kind") == "turn-settled" and event.get("turnId"):
+                        thread = event["threadId"]
+                        identity = (event["turnId"], event.get("turnState"))
+                        if notified_turns.get(thread) == identity:
+                            continue
+                        on_salient(event)
+                        notified_turns[thread] = identity
+                        continue
+                    on_salient(event)
+                persist_sequence(state["sequence"])
+            return state
+        except (ConnectionError, OSError, TimeoutError, asyncio.TimeoutError):
             if stop.is_set():
-                break
-            state, events = reduce_item(state, item)
-            persist_sequence(state["sequence"])
-            for event in events:
-                on_salient(event)
-    finally:
-        aclose = getattr(agen, "aclose", None)
-        if callable(aclose):
-            try:
-                closing = aclose()
-                if inspect.isawaitable(closing):
-                    await closing
-            except Exception:
-                pass
+                return state
+            if attempt == 5:
+                raise
+            await sleep(min(2 ** attempt, 30))
+        finally:
+            aclose = getattr(agen, "aclose", None)
+            if callable(aclose):
+                try:
+                    closing = aclose()
+                    if inspect.isawaitable(closing):
+                        await closing
+                except Exception:
+                    pass
     return state
 
 
@@ -532,9 +583,10 @@ def _call_spawn(spawn: Callable, coro, name: str):
 
 
 def _thread_fallback(coro) -> threading.Thread:
+    context = contextvars.copy_context()
     def worker() -> None:
         try:
-            asyncio.run(coro)
+            context.run(asyncio.run, coro)
         except Exception:
             return
 
@@ -543,26 +595,29 @@ def _thread_fallback(coro) -> threading.Thread:
     return thread
 
 
-def _inject_event(ctx, environment: str, event: Mapping[str, Any], kwargs: Mapping[str, Any] | None) -> None:
+def _inject_event(ctx, environment: str, event: Mapping[str, Any], kwargs: Mapping[str, Any] | None) -> bool:
     inject = getattr(ctx, "inject_message", None)
     if not callable(inject):
-        return
+        return False
     text = format_inject_message(environment, event)
     session_key = None
     if kwargs is not None:
         session_key = kwargs.get("session_key")
     try:
         if session_key:
-            inject(text, role="user", session_key=session_key)
+            result = inject(text, role="user", session_key=session_key)
         else:
-            inject(text, role="user")
+            result = inject(text, role="user")
     except TypeError:
+        if session_key:
+            return False
         try:
-            inject(text)
+            result = inject(text)
         except Exception:
-            return
+            return False
     except Exception:
-        return
+        return False
+    return result is not False
 
 
 def start_watch(
@@ -574,10 +629,23 @@ def start_watch(
     spawn: Callable | None,
     client_factory: Callable[[], Any],
     kwargs: Mapping[str, Any] | None = None,
+    protocol_version: int = 1,
 ) -> str:
-    wid = watch_id(kind, environment, thread_id)
+    session_key = kwargs.get("session_key") if kwargs else None
+    if session_key:
+        try:
+            params = inspect.signature(ctx.inject_message).parameters
+            scoped = "session_key" in params or any(
+                param.kind == inspect.Parameter.VAR_KEYWORD for param in params.values())
+        except (AttributeError, TypeError, ValueError):
+            scoped = False
+        if not scoped:
+            raise TalariaError("Hermes host does not support scoped event delivery",
+                               "update the host; private watches cannot fall back to broadcast injection")
+    wid = watch_id(kind, environment, thread_id, session_key)
+    live_key = (id(ctx), wid)
     target = {"kind": kind, "environment": environment, "threadId": thread_id}
-    existing = _live.get(wid)
+    existing = _live.get(live_key)
     if existing is not None and not existing["stop"].is_set():
         return json.dumps(
             {
@@ -592,11 +660,11 @@ def start_watch(
     _put_target(ctx, wid, target, cursor if cursor else None)
     stop = threading.Event()
     live: dict[str, Any] = {"stop": stop, "task": None, "client": None}
-    _live[wid] = live
+    _live[live_key] = live
     payload: dict[str, Any] = {"requestCompletionMarker": True}
     if cursor > 0:
         payload["afterSequence"] = cursor
-    if kind == "thread":
+    if kind == "thread" and protocol_version == 1:
         payload["threadId"] = thread_id
         tag = THREAD_TAG
     else:
@@ -604,18 +672,19 @@ def start_watch(
 
     async def body() -> None:
         live["loop"] = asyncio.get_running_loop()
-        client = client_factory()
-        live["client"] = client
+        client = None
         try:
+            client = client_factory()
+            live["client"] = client
             def persist(sequence: int) -> None:
-                blob = _watch_blob(ctx)
-                blob["cursors"][wid] = sequence
-                if wid not in blob["targets"]:
-                    blob["targets"][wid] = target
-                _save_watch_blob(ctx, blob)
+                with _state_lock:
+                    if not stop.is_set():
+                        _put_target(ctx, wid, target, sequence)
 
             def on_salient(event: dict[str, Any]) -> None:
-                _inject_event(ctx, environment, event, kwargs)
+                if kind != "thread" or event.get("threadId") == thread_id:
+                    if not _inject_event(ctx, environment, event, kwargs):
+                        raise TalariaError("event delivery failed", "check the Hermes injection grant")
 
             await run_watch(
                 client,
@@ -625,24 +694,34 @@ def start_watch(
                 on_salient=on_salient,
                 persist_sequence=persist,
                 stop=stop,
+                sleep=(kwargs or {}).get("watch_sleep", asyncio.sleep),
             )
         except asyncio.CancelledError:
             raise
         except Exception:
+            _put_target(ctx, wid, {**target, "status": "failed"})
+            _inject_event(ctx, environment, {"kind": "watch-failed", "threadId": thread_id}, kwargs)
             return
         finally:
             await _close_client(client)
-            current = _live.get(wid)
+            current = _live.get(live_key)
             if current is live:
-                _live.pop(wid, None)
+                _live.pop(live_key, None)
 
     name = f"t3-watch-{wid}"
     task = None
     if spawn is not None:
+        coro = body()
         try:
-            task = _call_spawn(spawn, body(), name)
+            task = _call_spawn(spawn, coro, name)
         except RuntimeError:
+            coro.close()
             task = _thread_fallback(body())
+        except BaseException:
+            coro.close()
+            _live.pop(live_key, None)
+            _drop_target(ctx, wid)
+            raise
     else:
         task = _thread_fallback(body())
     live["task"] = task
@@ -665,7 +744,11 @@ def _interrupt_live(live: Mapping[str, Any]) -> None:
     cancel = getattr(task, "cancel", None)
     if callable(cancel):
         try:
-            cancel()
+            loop = live.get("loop")
+            if loop is not None and loop.is_running():
+                loop.call_soon_threadsafe(cancel)
+            else:
+                cancel()
         except Exception:
             pass
     client = live.get("client")
@@ -696,9 +779,10 @@ def stop_watch(
     kind: str,
     environment: str,
     thread_id: str | None,
+    session_key: str | None = None,
 ) -> str:
-    wid = watch_id(kind, environment, thread_id)
-    live = _live.pop(wid, None)
+    wid = watch_id(kind, environment, thread_id, session_key)
+    live = _live.pop((id(ctx), wid), None)
     if live is not None:
         _interrupt_live(live)
     _drop_target(ctx, wid)
